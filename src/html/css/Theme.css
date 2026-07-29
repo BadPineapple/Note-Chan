@@ -1,0 +1,79 @@
+/* ═══════════════════════════════  Theme.css  ═════════════════════════════
+   Só variáveis — nenhuma regra visual mora aqui. Compartilhado pelas 3
+   janelas (widget, configurações, captura rápida) via <link>, assim trocar
+   de tema em uma reflete a paleta nas outras.
+
+   --surface-rgb é a cor "neutra" usada em overlays (cartões, hover, inputs):
+   branco nos temas escuros (clareia a superfície), preto nos temas claros
+   (escurece pra manter contraste) — as regras em Style.css usam sempre a
+   mesma opacidade, só a base muda por tema.
+
+   color-scheme diz ao Chromium se o "chrome" nativo dos controles de
+   formulário (o popup do <select>, o calendário do <input type=date>, a
+   barra de rolagem) deve ser claro ou escuro — sem isso, o popup do select
+   sempre vem branco, o que fica ilegível com texto claro por cima nos temas
+   escuros.
+*/
+
+:root,
+[data-theme="gold"] {
+  --bg-rgb: 30 30 30;
+  --accent-rgb: 255 215 0;
+  --panel-text-rgb: 255 255 255;
+  --surface-rgb: 255 255 255;
+  --danger-rgb: 255 128 128;
+  --dragbar-rgb: 10 10 10;
+  --dragbar-alpha: 0.3;
+  color-scheme: dark;
+}
+
+/* Kuromi — preto/roxo, acento magenta */
+[data-theme="kuromi"] {
+  --bg-rgb: 24 16 28;
+  --accent-rgb: 210 90 230;
+  --panel-text-rgb: 240 225 250;
+  --surface-rgb: 255 255 255;
+  --danger-rgb: 255 105 140;
+  --dragbar-rgb: 12 6 16;
+  --dragbar-alpha: 0.5;
+  color-scheme: dark;
+}
+
+/* Hello Kitty — branco rosado, acento vermelho do laço (escurecido pra
+   contraste de leitura sobre o fundo claro) */
+[data-theme="hello-kitty"] {
+  --bg-rgb: 255 241 246;
+  --accent-rgb: 175 15 60;
+  --panel-text-rgb: 60 25 35;
+  --surface-rgb: 0 0 0;
+  --danger-rgb: 165 25 25;
+  --dragbar-rgb: 255 200 215;
+  --dragbar-alpha: 0.55;
+  color-scheme: light;
+}
+
+/* Cinnamoroll — branco azulado, acento azul-céu escurecido (o tom claro
+   original ficava quase invisível sobre o fundo pastel) */
+[data-theme="cinnamoroll"] {
+  --bg-rgb: 235 247 255;
+  --accent-rgb: 10 70 140;
+  --panel-text-rgb: 25 45 70;
+  --surface-rgb: 0 0 0;
+  --danger-rgb: 165 40 40;
+  --dragbar-rgb: 195 228 250;
+  --dragbar-alpha: 0.55;
+  color-scheme: light;
+}
+
+/* Gudetama — amarelo pastel de ovo, acento laranja/marrom-gema escurecido
+   pra não sumir sobre o fundo amarelo claro */
+[data-theme="gudetama"] {
+  --bg-rgb: 255 247 222;
+  --accent-rgb: 150 85 10;
+  --panel-text-rgb: 75 55 20;
+  --surface-rgb: 0 0 0;
+  --danger-rgb: 165 55 20;
+  --dragbar-rgb: 255 222 150;
+  --dragbar-alpha: 0.55;
+  color-scheme: light;
+}

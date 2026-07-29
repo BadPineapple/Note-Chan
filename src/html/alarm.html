@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <meta http-equiv="Content-Security-Policy" content="
+    default-src 'none';
+    script-src 'self';
+    style-src 'self' 'unsafe-inline';
+    img-src 'self' data:;
+    font-src 'self';
+  " />
+  <title>Alarme — Note-Chan</title>
+  <link rel="stylesheet" href="css/Theme.css" />
+  <link rel="stylesheet" href="css/alarm_style.css" />
+</head>
+<body>
+  <div id="alarm-container">
+    <div class="alarm-icon">⏰</div>
+    <div id="alarm-title">Evento</div>
+    <div id="alarm-time"></div>
+    <div class="alarm-actions">
+      <button id="alarm-snooze-btn">😴 Remarcar</button>
+      <button id="alarm-stop-btn">✅ Parar</button>
+    </div>
+  </div>
+
+  <script src="../js/AlarmSounds.js"></script>
+  <script src="../js/Alarm.js"></script>
+</body>
+</html>

@@ -1,0 +1,318 @@
+/* ═══════════════════════════  settings_style.css  ════════════════════════
+   Janela normal (com moldura), então usa fundo quase opaco — a
+   transparência configurável é só pro widget flutuante.
+*/
+
+html, body {
+  margin: 0;
+  padding: 0;
+  font-family: 'Segoe UI', Tahoma, sans-serif;
+  background: rgb(var(--bg-rgb, 30 30 30) / 0.97);
+  color: rgb(var(--panel-text-rgb, 255 255 255));
+}
+
+*, *::before, *::after { box-sizing: border-box; }
+
+#settings-container {
+  padding: 14px 18px 24px;
+}
+
+section {
+  margin-bottom: 20px;
+}
+
+/* ────────────────────────────  Abas do settings  ─────────────────────────── */
+#settings-tabs {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 16px;
+}
+
+.stab-btn {
+  flex: 1;
+  padding: 8px 4px;
+  background: rgb(var(--bg-rgb) / 0.5);
+  color: rgb(var(--panel-text-rgb));
+  opacity: 0.7;
+  border: none;
+  border-radius: 8px;
+  font-family: inherit;
+  font-size: 0.92em;
+  cursor: pointer;
+  transition: background 0.2s, opacity 0.2s;
+}
+.stab-btn:hover { background: rgb(var(--accent-rgb) / 0.12); opacity: 0.9; }
+.stab-btn.active {
+  background: rgb(var(--accent-rgb) / 0.18);
+  color: rgb(var(--accent-rgb));
+  opacity: 1;
+}
+
+.stab-panel { display: none; }
+.stab-panel.active { display: block; }
+
+/* ─────────────────────────  Aba de aniversariantes  ──────────────────────── */
+#bday-new-container { margin-bottom: 14px; }
+#bday-new-btn {
+  width: 100%;
+  padding: 7px 0;
+  background: rgb(var(--bg-rgb) / 0.5);
+  color: rgb(var(--accent-rgb));
+  border: none;
+  border-radius: 7px;
+  font-family: inherit;
+  font-size: 0.95em;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+#bday-new-btn:hover { background: rgb(var(--accent-rgb) / 0.14); }
+
+#bday-board {
+  max-height: 430px;
+  overflow-y: auto;
+  padding-right: 2px;
+}
+#bday-board::-webkit-scrollbar { width: 6px; }
+#bday-board::-webkit-scrollbar-thumb { background: rgb(var(--accent-rgb) / 0.25); border-radius: 4px; }
+
+/* ────────────────────────────────  Aba de tags  ──────────────────────────── */
+#tag-new-container { margin-bottom: 14px; }
+#tag-new-btn {
+  width: 100%;
+  padding: 7px 0;
+  background: rgb(var(--bg-rgb) / 0.5);
+  color: rgb(var(--accent-rgb));
+  border: none;
+  border-radius: 7px;
+  font-family: inherit;
+  font-size: 0.95em;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+#tag-new-btn:hover { background: rgb(var(--accent-rgb) / 0.14); }
+
+#tag-board {
+  max-height: 430px;
+  overflow-y: auto;
+  padding-right: 2px;
+}
+#tag-board::-webkit-scrollbar { width: 6px; }
+#tag-board::-webkit-scrollbar-thumb { background: rgb(var(--accent-rgb) / 0.25); border-radius: 4px; }
+
+h2 {
+  font-size: 0.85em;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  opacity: 0.7;
+  margin: 0 0 8px;
+}
+
+/* ─────────────────────────────────  Temas  ──────────────────────────────── */
+#theme-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.theme-swatch {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  border: 2px solid transparent;
+  background: rgb(var(--bg-rgb) / 0.5);
+  color: rgb(var(--panel-text-rgb));
+  cursor: pointer;
+  font-size: 0.88em;
+  font-family: inherit;
+  transition: border-color 0.15s, background 0.15s;
+}
+.theme-swatch:hover { background: rgb(var(--accent-rgb) / 0.12); }
+.theme-swatch.selected { border-color: rgb(var(--accent-rgb)); background: rgb(var(--accent-rgb) / 0.16); }
+
+.swatch-dot {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: rgb(var(--accent-rgb));
+  border: 2px solid rgb(var(--bg-rgb));
+  box-shadow: 0 0 0 1px rgb(var(--accent-rgb) / 0.5);
+  flex-shrink: 0;
+}
+
+/* ────────────────────────────  Transparência  ───────────────────────────── */
+.slider-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+#transparency-slider {
+  flex: 1;
+  accent-color: #808080;
+}
+#transparency-value {
+  font-size: 0.85em;
+  opacity: 0.8;
+  width: 40px;
+  text-align: right;
+}
+
+/* ─────────────────────────────  Notificações  ───────────────────────────── */
+.switch-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  cursor: pointer;
+  font-size: 0.92em;
+}
+.switch-row input[type="checkbox"] { display: none; }
+.switch {
+  position: relative;
+  width: 36px;
+  height: 20px;
+  border-radius: 10px;
+  background: rgb(128 128 128 / 0.35);
+  flex-shrink: 0;
+  margin-left: auto;
+  transition: background 0.2s;
+}
+.switch::after {
+  content: "";
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: #fff;
+  transition: left 0.2s;
+}
+.switch-row input:checked + .switch { background: rgb(var(--accent-rgb)); }
+.switch-row input:checked + .switch::after { left: 18px; }
+
+/* ────────────────────────────────  Atalhos  ──────────────────────────────── */
+.shortcut-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 8px;
+  font-size: 0.88em;
+}
+
+.shortcut-recorder {
+  padding: 5px 10px;
+  min-width: 130px;
+  background: rgb(var(--bg-rgb) / 0.5);
+  color: rgb(var(--accent-rgb));
+  border: 1px solid rgb(var(--accent-rgb) / 0.3);
+  border-radius: 6px;
+  font-family: inherit;
+  font-size: 0.95em;
+  cursor: pointer;
+}
+.shortcut-recorder:hover { background: rgb(var(--accent-rgb) / 0.12); }
+.shortcut-recorder.recording {
+  color: rgb(var(--panel-text-rgb));
+  border-color: rgb(var(--panel-text-rgb) / 0.4);
+  animation: pulse 1s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+
+.hint {
+  font-size: 0.78em;
+  opacity: 0.6;
+  margin-top: 4px;
+}
+.hint.error { color: #ff8080; opacity: 1; }
+
+/* ─────────────────────────────────  Tags  ────────────────────────────────── */
+.tag-item {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.tag-name-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.tag-color-dot {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.tag-name {
+  font-weight: bold;
+  color: rgb(var(--panel-text-rgb));
+  cursor: text;
+  outline: none;
+}
+
+.tag-swatches {
+  display: flex;
+  gap: 6px;
+}
+
+.tag-swatch {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  border: 2px solid transparent;
+  cursor: pointer;
+  padding: 0;
+}
+.tag-swatch:hover { transform: scale(1.1); }
+.tag-swatch.selected { border-color: rgb(var(--panel-text-rgb)); }
+
+/* ────────────────────────────────  Alarme  ──────────────────────────────── */
+#alarm-volume-row { margin-top: 10px; }
+
+#alarm-sound-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-top: 10px;
+}
+
+.alarm-sound-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 10px;
+  border-radius: 8px;
+  border: 2px solid transparent;
+  background: rgb(var(--bg-rgb) / 0.5);
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s;
+}
+.alarm-sound-row:hover { background: rgb(var(--accent-rgb) / 0.1); }
+.alarm-sound-row.selected { border-color: rgb(var(--accent-rgb)); background: rgb(var(--accent-rgb) / 0.16); }
+
+.alarm-sound-label {
+  font-size: 0.88em;
+  color: rgb(var(--panel-text-rgb));
+}
+
+.alarm-sound-preview {
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  border: none;
+  background: rgb(var(--accent-rgb) / 0.18);
+  color: rgb(var(--accent-rgb));
+  cursor: pointer;
+  font-size: 0.8em;
+  flex-shrink: 0;
+}
+.alarm-sound-preview:hover { background: rgb(var(--accent-rgb) / 0.3); }
+.tag-swatch.selected { border-color: rgb(var(--panel-text-rgb)); }

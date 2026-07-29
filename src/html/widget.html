@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <meta http-equiv="Content-Security-Policy" content="
+    default-src 'none';
+    script-src 'self';
+    style-src 'self' 'unsafe-inline';
+    img-src 'self' data:;
+    font-src 'self';
+  " />
+  <title>Note-Chan</title>
+  <link rel="stylesheet" href="css/Theme.css" />
+  <link rel="stylesheet" href="css/Style.css" />
+</head>
+<body>
+  <div id="container">
+    <div id="panel">
+      <div id="dragbar" title="Clique para minimizar/expandir">
+        <span id="dragbar-icon">⌄</span> Note-Chan
+        <div id="window-btns">
+          <button class="window-btn" id="searchbtn" title="Buscar (Ctrl+F)">🔍</button>
+          <button class="window-btn" id="settingsbtn" title="Configurações">⚙</button>
+          <button class="window-btn" id="minbtn" title="Minimizar">—</button>
+          <button class="window-btn" id="closebtn" title="Fechar">✕</button>
+        </div>
+      </div>
+
+      <div id="tabs">
+        <button class="tab-btn" id="tab-notas" data-tab="notas">📝 Notas</button>
+        <button class="tab-btn" id="tab-listas" data-tab="listas">✅ Listas</button>
+        <button class="tab-btn" id="tab-eventos" data-tab="eventos">📅 Eventos</button>
+      </div>
+
+      <div id="new-btn-container">
+        <button id="new-btn">+ Nova nota</button>
+      </div>
+
+      <div id="search-bar">
+        <input type="text" id="search-input" placeholder="Buscar por título..." autocomplete="off" spellcheck="false" />
+      </div>
+
+      <div id="board"></div>
+    </div>
+
+    <div id="drop-hint">📎 Solte o arquivo para criar uma nota</div>
+  </div>
+
+  <script src="../js/EventUtils.js"></script>
+  <script src="../js/TagUtils.js"></script>
+  <script src="../js/Widget.js"></script>
+</body>
+</html>

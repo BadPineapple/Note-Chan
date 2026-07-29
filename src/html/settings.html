@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <meta http-equiv="Content-Security-Policy" content="
+    default-src 'none';
+    script-src 'self';
+    style-src 'self' 'unsafe-inline';
+    img-src 'self' data:;
+    font-src 'self';
+  " />
+  <title>Configurações — Note-Chan</title>
+  <link rel="stylesheet" href="css/Theme.css" />
+  <link rel="stylesheet" href="css/Style.css" />
+  <link rel="stylesheet" href="css/settings_style.css" />
+</head>
+<body>
+  <div id="settings-container">
+    <div id="settings-tabs">
+      <button class="stab-btn active" id="stab-btn-geral" data-stab="geral">⚙ Geral</button>
+      <button class="stab-btn" id="stab-btn-aniversarios" data-stab="aniversarios">🎂 Aniversariantes</button>
+      <button class="stab-btn" id="stab-btn-tags" data-stab="tags">🏷 Tags</button>
+    </div>
+
+    <div id="stab-geral" class="stab-panel active">
+      <section>
+        <h2>Tema</h2>
+        <div id="theme-grid">
+          <button class="theme-swatch" data-theme="gold"><span class="swatch-dot"></span>Dourado</button>
+          <button class="theme-swatch" data-theme="kuromi"><span class="swatch-dot"></span>Kuromi</button>
+          <button class="theme-swatch" data-theme="hello-kitty"><span class="swatch-dot"></span>Hello Kitty</button>
+          <button class="theme-swatch" data-theme="cinnamoroll"><span class="swatch-dot"></span>Cinnamoroll</button>
+          <button class="theme-swatch" data-theme="gudetama"><span class="swatch-dot"></span>Gudetama</button>
+        </div>
+      </section>
+
+      <section>
+        <h2>Transparência do widget</h2>
+        <div class="slider-row">
+          <input type="range" id="transparency-slider" min="20" max="100" step="5" />
+          <span id="transparency-value">60%</span>
+        </div>
+      </section>
+
+      <section>
+        <h2>Alarme de eventos</h2>
+        <label class="switch-row">
+          <span>Tocar alarme nos eventos programados</span>
+          <input type="checkbox" id="alarm-enabled-toggle" />
+          <span class="switch"></span>
+        </label>
+        <div class="slider-row" id="alarm-volume-row">
+          <span>🔊</span>
+          <input type="range" id="alarm-volume-slider" min="0" max="100" step="5" />
+          <span id="alarm-volume-value">70%</span>
+        </div>
+        <div id="alarm-sound-list"></div>
+      </section>
+
+      <section>
+        <h2>Atalhos globais</h2>
+        <div class="shortcut-row">
+          <span>Mostrar/ocultar Note-Chan</span>
+          <button class="shortcut-recorder" id="rec-toggleWidget" data-action="toggleWidget"></button>
+        </div>
+        <div class="shortcut-row">
+          <span>Captura rápida</span>
+          <button class="shortcut-recorder" id="rec-quickCapture" data-action="quickCapture"></button>
+        </div>
+        <div id="shortcut-hint" class="hint">Clique num atalho e pressione a combinação desejada (precisa de Ctrl, Alt ou Shift).</div>
+      </section>
+    </div>
+
+    <div id="stab-aniversarios" class="stab-panel">
+      <div id="bday-new-container">
+        <button id="bday-new-btn">+ Novo aniversariante</button>
+      </div>
+      <div id="bday-board"></div>
+    </div>
+
+    <div id="stab-tags" class="stab-panel">
+      <div id="tag-new-container">
+        <button id="tag-new-btn">+ Nova tag</button>
+      </div>
+      <div id="tag-board"></div>
+    </div>
+  </div>
+
+  <script src="../js/EventUtils.js"></script>
+  <script src="../js/TagUtils.js"></script>
+  <script src="../js/AlarmSounds.js"></script>
+  <script src="../js/Settings.js"></script>
+</body>
+</html>

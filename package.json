@@ -1,0 +1,54 @@
+{
+  "name": "note-chan",
+  "version": "1.0.0",
+  "description": "Widget de notas, listas e eventos que fica ancorado na tela — tudo local, sem depender de internet.",
+  "main": "src/js/Main.js",
+  "author": "Renato",
+  "license": "MIT",
+  "scripts": {
+    "start": "electron .",
+    "build": "electron-builder",
+    "dist": "electron-builder --win --publish never"
+  },
+  "build": {
+    "appId": "com.renato.notechan",
+    "productName": "Note-Chan",
+    "asar": true,
+    "directories": {
+      "output": "dist"
+    },
+    "files": [
+      "src/**/*",
+      "assets/**/*",
+      "!logs/**/*",
+      "!dist/**/*",
+      "!**/*.map"
+    ],
+    "win": {
+      "target": [
+        { "target": "nsis", "arch": ["x64"] }
+      ],
+      "icon": "assets/img/icon.png",
+      "artifactName": "${productName}-Setup-${version}.${ext}"
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "allowElevation": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "Note-Chan",
+      "artifactName": "${productName}-Setup-${version}.${ext}",
+      "uninstallDisplayName": "${productName}"
+    }
+  },
+  "devDependencies": {
+    "electron": "^41.1.1",
+    "electron-builder": "^26.8.1"
+  },
+  "allowScripts": {
+    "electron@41.10.3": true,
+    "electron-winstaller@5.4.0": true
+  }
+}

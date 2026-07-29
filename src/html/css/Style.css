@@ -1,0 +1,554 @@
+/* ═══════════════════════════════  Style.css  ════════════════════════════
+   Usa as variáveis de Theme.css (--bg-rgb, --accent-rgb, --panel-text-rgb,
+   --surface-rgb, --danger-rgb, --dragbar-rgb/alpha). --bg-alpha é a única
+   variável setada via JS (slider de transparência em tempo real).
+*/
+
+html, body {
+  margin: 0;
+  padding: 0;
+  background: transparent;
+  color: rgb(var(--panel-text-rgb, 255 255 255));
+  font-family: 'Segoe UI', Tahoma, sans-serif;
+  width: 100%;
+  height: 100%;
+  user-select: none;
+  box-sizing: border-box;
+  overflow: hidden;
+}
+
+*, *::before, *::after { box-sizing: border-box; }
+
+#container {
+  position: relative;
+  width: 100%;
+  height: 100vh;
+  overflow: hidden;
+}
+
+/* ───────────────────────────────  Painel  ───────────────────────────────── */
+#panel {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  height: 100%;
+  background: rgb(var(--bg-rgb, 30 30 30) / var(--bg-alpha, 0.6));
+  border-radius: 12px;
+  overflow: hidden;
+}
+/* Sem padding no #panel de propósito — o dragbar precisa ocupar o topo
+   (e as laterais) por completo, encostado nas bordas arredondadas. Se
+   ele tivesse um respiro do #panel ao redor, apareceria uma faixa da cor
+   de fundo do painel (diferente da cor do dragbar) por cima do cabeçalho,
+   tanto expandido quanto no modo bandeja. Cada seção abaixo do dragbar
+   cuida do próprio espaçamento lateral (#tabs, #new-btn-container, #board
+   já têm padding próprio). */
+
+/* No modo bandeja só a barra de título fica visível — a janela em si é
+   redimensionada pelo main para caber só nela (ver DOCK_SIZE em Main.js). */
+#container.collapsed #tabs,
+#container.collapsed #new-btn-container,
+#container.collapsed #search-bar,
+#container.collapsed #board {
+  display: none;
+}
+#container.collapsed #dragbar { margin-bottom: 0; }
+
+/* ─────────────────────────────  Barra de título  ───────────────────────── */
+#dragbar {
+  position: relative;
+  width: 100%;
+  height: 32px;
+  line-height: 32px;
+  padding-left: 8px;
+  margin-bottom: 6px;
+  background: rgb(var(--dragbar-rgb, 10 10 10) / var(--dragbar-alpha, 0.3));
+  color: rgb(var(--accent-rgb, 255 215 0));
+  font-weight: bold;
+  letter-spacing: 1px;
+  border-top-left-radius: 12px;
+  border-top-right-radius: 12px;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+#dragbar:hover { background: rgb(var(--dragbar-rgb, 10 10 10) / calc(var(--dragbar-alpha, 0.3) + 0.15)); }
+#container.collapsed #dragbar { border-radius: 12px; }
+
+#window-btns {
+  position: absolute;
+  top: 0;
+  right: 5px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+}
+
+.window-btn {
+  width: 22px;
+  height: 22px;
+  margin-left: 2px;
+  border: none;
+  background: none;
+  color: rgb(var(--accent-rgb, 255 215 0));
+  font-size: 14px;
+  border-radius: 5px;
+  cursor: pointer;
+  outline: none;
+  transition: background 0.2s;
+}
+.window-btn:hover { background: rgb(var(--surface-rgb, 255 255 255) / 0.12); }
+
+/* ─────────────────────────────────  Abas  ──────────────────────────────── */
+#tabs {
+  display: flex;
+  gap: 3px;
+  margin-bottom: 8px;
+  padding: 0 3px;
+}
+
+.tab-btn {
+  flex: 1;
+  min-width: 0;
+  padding: 6px 1px;
+  background: rgb(var(--surface-rgb, 255 255 255) / 0.08);
+  color: rgb(var(--panel-text-rgb, 255 255 255));
+  opacity: 0.7;
+  border: none;
+  border-radius: 7px;
+  font-size: 0.78em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  cursor: pointer;
+  transition: background 0.2s, opacity 0.2s;
+}
+.tab-btn:hover { background: rgb(var(--surface-rgb, 255 255 255) / 0.14); opacity: 0.9; }
+.tab-btn.active {
+  background: rgb(var(--accent-rgb, 255 215 0) / 0.16);
+  color: rgb(var(--accent-rgb, 255 215 0));
+  opacity: 1;
+}
+
+/* ──────────────────────────────  Nova entrada  ─────────────────────────── */
+#new-btn-container {
+  padding: 0 3px;
+  margin-bottom: 6px;
+}
+
+#new-btn {
+  width: 100%;
+  padding: 5px 0;
+  background: rgb(var(--surface-rgb, 255 255 255) / 0.08);
+  color: rgb(var(--accent-rgb, 255 215 0));
+  border: none;
+  border-radius: 7px;
+  font-size: 0.95em;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+#new-btn:hover  { background: rgb(var(--surface-rgb, 255 255 255) / 0.16); }
+#new-btn:active { background: rgb(var(--surface-rgb, 255 255 255) / 0.24); }
+
+/* ───────────────────────────────  Busca de cards  ───────────────────────── */
+#search-bar {
+  display: none;
+  padding: 0 3px;
+  margin-bottom: 6px;
+}
+#search-bar.open { display: block; }
+
+#search-input {
+  width: 100%;
+  padding: 5px 8px;
+  background: rgb(var(--surface-rgb, 255 255 255) / 0.08);
+  color: rgb(var(--panel-text-rgb, 255 255 255));
+  border: none;
+  border-radius: 7px;
+  font-family: inherit;
+  font-size: 0.88em;
+  outline: none;
+}
+#search-input::placeholder { color: rgb(var(--panel-text-rgb, 255 255 255) / 0.45); }
+#search-input:focus { box-shadow: 0 0 0 1px rgb(var(--accent-rgb, 255 215 0) / 0.35) inset; }
+
+/* ─────────────────────────────  Lista principal  ───────────────────────── */
+#board {
+  flex: 1;
+  margin-top: 2px;
+  padding: 0 4px 6px 5px;
+  font-size: 0.93em;
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+#board::-webkit-scrollbar { width: 6px; }
+#board::-webkit-scrollbar-thumb {
+  background: rgb(var(--accent-rgb, 255 215 0) / 0.25);
+  border-radius: 4px;
+}
+
+.empty-msg {
+  opacity: 0.6;
+  padding: 10px 4px;
+  font-style: italic;
+  text-align: center;
+}
+
+/* ────────────────────────────────  Cartões  ─────────────────────────────── */
+.card {
+  position: relative;
+  margin-bottom: 6px;
+  padding: 6px 26px 6px 8px;
+  background: rgb(var(--surface-rgb, 255 255 255) / 0.06);
+  border-radius: 8px;
+  border: 1px solid rgb(var(--surface-rgb, 255 255 255) / 0.1);
+  transition: background 0.15s;
+}
+.card:hover { background: rgb(var(--surface-rgb, 255 255 255) / 0.1); }
+.card:not(.expanded) .card-body { display: none; }
+.card.expanded .card-preview { display: none; }
+
+/* Arrastar-e-soltar pra reordenar cards (Notas/Listas — ver Widget.js) */
+.card.dragging { opacity: 0.4; }
+.card.drag-over-top    { box-shadow: 0 -2px 0 0 rgb(var(--accent-rgb, 255 215 0)); }
+.card.drag-over-bottom { box-shadow: 0 2px 0 0 rgb(var(--accent-rgb, 255 215 0)); }
+
+/* Item selecionado via teclado (setas Cima/Baixo) — ver Widget.js */
+.card.kb-selected,
+#new-btn.kb-selected {
+  box-shadow: 0 0 0 2px rgb(var(--accent-rgb, 255 215 0)) inset;
+}
+
+.card-header {
+  display: flex;
+  align-items: center;
+  cursor: pointer;
+}
+
+.card-title {
+  flex: 1;
+  font-weight: bold;
+  color: rgb(var(--accent-rgb, 255 215 0));
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.card-title[contenteditable="true"] {
+  white-space: normal;
+  cursor: text;
+}
+
+.card-meta {
+  font-size: 0.78em;
+  opacity: 0.6;
+  margin-top: 1px;
+}
+
+.card-preview {
+  font-size: 0.85em;
+  opacity: 0.8;
+  margin-top: 2px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.card-delete {
+  position: absolute;
+  top: 6px;
+  right: 4px;
+  width: 18px;
+  height: 18px;
+  line-height: 18px;
+  text-align: center;
+  border-radius: 4px;
+  color: rgb(var(--danger-rgb, 255 128 128));
+  opacity: 0;
+  cursor: pointer;
+  transition: opacity 0.15s, background 0.15s;
+}
+.card:hover .card-delete { opacity: 0.75; }
+.card-delete:hover { opacity: 1 !important; background: rgb(var(--danger-rgb, 255 128 128) / 0.18); }
+
+/* Armado esperando o segundo clique de confirmação (ver armDeleteConfirm) */
+.card-delete.confirm-armed {
+  opacity: 1 !important;
+  width: auto;
+  padding: 0 5px;
+  right: 3px;
+  color: #fff;
+  background: rgb(var(--danger-rgb, 255 128 128));
+  animation: confirm-pulse 0.9s ease-in-out infinite;
+}
+@keyframes confirm-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.6; }
+}
+
+/* ─────────────────────────────  Editor de nota  ─────────────────────────── */
+.note-editor {
+  width: 100%;
+  min-height: 70px;
+  margin-top: 6px;
+  padding: 6px;
+  background: rgb(var(--surface-rgb, 255 255 255) / 0.08);
+  color: rgb(var(--panel-text-rgb, 255 255 255));
+  border: none;
+  border-radius: 6px;
+  font-family: inherit;
+  font-size: 0.95em;
+  resize: vertical;
+  outline: none;
+}
+.note-editor:focus { box-shadow: 0 0 0 1px rgb(var(--accent-rgb, 255 215 0) / 0.4) inset; }
+
+/* ─────────────────────────────  Itens de lista  ─────────────────────────── */
+.item-list {
+  margin-top: 6px;
+}
+
+.list-item {
+  display: flex;
+  align-items: center;
+  padding: 4px 2px;
+  border-radius: 5px;
+  border-bottom: 1px solid rgb(var(--surface-rgb, 255 255 255) / 0.08);
+  cursor: grab;
+}
+.list-item:last-child { border-bottom: none; }
+.list-item:hover { background: rgb(var(--surface-rgb, 255 255 255) / 0.08); }
+.list-item.dragging { opacity: 0.4; }
+.list-item.drag-over-top    { box-shadow: 0 -2px 0 0 rgb(var(--accent-rgb, 255 215 0)); }
+.list-item.drag-over-bottom { box-shadow: 0 2px 0 0 rgb(var(--accent-rgb, 255 215 0)); }
+
+.list-item input[type="checkbox"] {
+  margin: 0 6px 0 0;
+  accent-color: rgb(var(--accent-rgb, 255 215 0));
+  cursor: pointer;
+}
+
+.list-item .item-text {
+  flex: 1;
+  outline: none;
+  word-break: break-word;
+  cursor: text;
+}
+.list-item.done .item-text {
+  text-decoration: line-through;
+  opacity: 0.5;
+}
+
+.item-delete {
+  width: 16px;
+  height: 16px;
+  line-height: 16px;
+  text-align: center;
+  font-size: 0.85em;
+  color: rgb(var(--danger-rgb, 255 128 128));
+  opacity: 0;
+  cursor: pointer;
+  border-radius: 3px;
+}
+.list-item:hover .item-delete { opacity: 0.6; }
+.item-delete:hover { opacity: 1 !important; background: rgb(var(--danger-rgb, 255 128 128) / 0.18); }
+
+.item-add {
+  width: 100%;
+  margin-top: 4px;
+  padding: 4px 6px;
+  background: rgb(var(--surface-rgb, 255 255 255) / 0.08);
+  color: rgb(var(--panel-text-rgb, 255 255 255));
+  border: none;
+  border-radius: 5px;
+  font-family: inherit;
+  font-size: 0.88em;
+  outline: none;
+}
+.item-add::placeholder { color: rgb(var(--panel-text-rgb, 255 255 255) / 0.45); }
+.item-add:focus { box-shadow: 0 0 0 1px rgb(var(--accent-rgb, 255 215 0) / 0.35) inset; }
+
+/* ─────────────────────────────────  Eventos  ────────────────────────────── */
+.event-badge {
+  display: inline-block;
+  padding: 1px 6px;
+  border-radius: 4px;
+  font-size: 0.82em;
+  font-weight: bold;
+  margin-right: 4px;
+  background: rgb(var(--surface-rgb, 255 255 255) / 0.1);
+}
+.event-badge.today   { background: rgb(var(--accent-rgb, 255 215 0) / 0.22); color: rgb(var(--accent-rgb, 255 215 0)); }
+.event-badge.soon    { background: rgba(120, 170, 255, 0.22); color: #4f8fe0; }
+.event-badge.overdue { background: rgb(var(--danger-rgb, 255 128 128) / 0.22); color: rgb(var(--danger-rgb, 255 128 128)); }
+.event-badge.done    { background: rgba(90, 190, 120, 0.22); color: #3f9a5c; }
+
+.event-fields {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 6px;
+}
+.event-fields label {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: 0.78em;
+  opacity: 0.8;
+}
+.event-fields input,
+.event-fields select {
+  background: rgb(var(--surface-rgb, 255 255 255) / 0.08);
+  color: rgb(var(--panel-text-rgb, 255 255 255));
+  border: none;
+  border-radius: 5px;
+  padding: 4px 6px;
+  font-family: inherit;
+  font-size: 0.92em;
+  outline: none;
+}
+.event-fields input:focus,
+.event-fields select:focus { box-shadow: 0 0 0 1px rgb(var(--accent-rgb, 255 215 0) / 0.35) inset; }
+
+/* color-scheme (Theme.css) já resolve isso na maioria dos casos, mas fixar
+   explicitamente evita herdar branco-no-branco do popup nativo do <select>. */
+.event-fields option {
+  background: rgb(var(--bg-rgb, 30 30 30));
+  color: rgb(var(--panel-text-rgb, 255 255 255));
+}
+
+.event-row { display: flex; gap: 6px; }
+.event-row > label { flex: 1; min-width: 0; }
+
+.event-link-row { display: flex; gap: 4px; align-items: flex-end; }
+.event-link-row label { flex: 1; min-width: 0; }
+
+.event-open-link {
+  padding: 4px 8px;
+  background: rgb(var(--accent-rgb, 255 215 0) / 0.16);
+  color: rgb(var(--accent-rgb, 255 215 0));
+  border: none;
+  border-radius: 5px;
+  cursor: pointer;
+  font-size: 0.85em;
+  white-space: nowrap;
+}
+.event-open-link:hover { background: rgb(var(--accent-rgb, 255 215 0) / 0.26); }
+.event-open-link:disabled { opacity: 0.35; cursor: default; }
+
+.event-checklist-label {
+  margin-top: 8px;
+  font-size: 0.78em;
+  opacity: 0.7;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.event-done-btn {
+  width: 100%;
+  margin-top: 4px;
+  padding: 6px 0;
+  background: rgba(90, 190, 120, 0.16);
+  color: #3f9a5c;
+  border: 1px solid rgba(90, 190, 120, 0.35);
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 0.9em;
+  font-weight: bold;
+  transition: background 0.2s;
+}
+.event-done-btn:hover { background: rgba(90, 190, 120, 0.26); }
+.event-done-btn.is-done {
+  background: rgb(var(--surface-rgb, 255 255 255) / 0.08);
+  color: rgb(var(--panel-text-rgb, 255 255 255) / 0.65);
+  border-color: rgb(var(--surface-rgb, 255 255 255) / 0.18);
+}
+
+/* ────────────────────────────  Aniversariantes  ─────────────────────────── */
+.birthday-badge {
+  display: inline-block;
+  padding: 1px 6px;
+  border-radius: 4px;
+  font-size: 0.82em;
+  font-weight: bold;
+  margin-right: 4px;
+  background: rgb(var(--surface-rgb, 255 255 255) / 0.1);
+}
+.birthday-badge.today { background: rgb(var(--accent-rgb, 255 215 0) / 0.22); color: rgb(var(--accent-rgb, 255 215 0)); }
+.birthday-badge.soon  { background: rgba(120, 170, 255, 0.22); color: #4f8fe0; }
+
+.birthday-category {
+  display: inline-block;
+  padding: 1px 6px;
+  border-radius: 4px;
+  font-size: 0.78em;
+  background: rgb(var(--surface-rgb, 255 255 255) / 0.08);
+  opacity: 0.85;
+}
+
+/* ─────────────────────────────────  Tags  ────────────────────────────────── */
+/* No canto oposto ao título, dentro do card-header — ver Widget.js */
+.card-tags {
+  display: flex;
+  gap: 4px;
+  flex-shrink: 0;
+  margin-left: 6px;
+}
+
+.tag-pill {
+  display: inline-block;
+  padding: 1px 6px;
+  border-radius: 10px;
+  font-size: 0.68em;
+  font-weight: bold;
+  white-space: nowrap;
+}
+
+/* Seletor de tags dentro do card expandido, pra atribuir/remover */
+.tag-picker {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 8px;
+}
+
+.tag-toggle {
+  padding: 2px 9px;
+  border-radius: 10px;
+  font-size: 0.78em;
+  font-family: inherit;
+  cursor: pointer;
+  border: 1px solid rgb(var(--surface-rgb, 255 255 255) / 0.15);
+  background: rgb(var(--surface-rgb, 255 255 255) / 0.06);
+  color: rgb(var(--panel-text-rgb, 255 255 255) / 0.6);
+  transition: opacity 0.15s;
+}
+.tag-toggle:not(.active) { opacity: 0.7; }
+.tag-toggle:hover { opacity: 1; }
+.tag-toggle.active { font-weight: bold; }
+
+.tag-picker-hint {
+  font-size: 0.75em;
+  opacity: 0.55;
+  font-style: italic;
+}
+
+/* ────────────────────────  Zona de soltar arquivos  ─────────────────────── */
+#container.file-drop-active #panel {
+  box-shadow: 0 0 0 2px rgb(var(--accent-rgb, 255 215 0) / 0.6) inset;
+}
+#drop-hint {
+  display: none;
+  position: absolute;
+  inset: 0;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 20px;
+  font-weight: bold;
+  color: rgb(var(--accent-rgb, 255 215 0));
+  background: rgb(var(--bg-rgb, 30 30 30) / 0.85);
+  border-radius: 12px;
+  pointer-events: none;
+  z-index: 5;
+}
+#container.file-drop-active #drop-hint { display: flex; }

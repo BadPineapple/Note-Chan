@@ -1,0 +1,23 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <meta http-equiv="Content-Security-Policy" content="
+    default-src 'none';
+    script-src 'self';
+    style-src 'self' 'unsafe-inline';
+    img-src 'self' data:;
+    font-src 'self';
+  " />
+  <title>Captura rápida</title>
+  <link rel="stylesheet" href="css/Theme.css" />
+  <link rel="stylesheet" href="css/quickcapture_style.css" />
+</head>
+<body>
+  <div id="qc-container">
+    <span id="qc-icon">📝</span>
+    <textarea id="qc-input" rows="1" placeholder="Anotar algo rápido... (Enter salva, Esc cancela)"></textarea>
+  </div>
+  <script src="../js/QuickCapture.js"></script>
+</body>
+</html>
