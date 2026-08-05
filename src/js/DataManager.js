@@ -62,7 +62,18 @@ function loadData() {
             ...defaults,
             ...parsed,
             widget: { ...defaults.widget, ...parsed.widget },
-            tamagotchi: { ...defaults.tamagotchi, ...parsed.tamagotchi },
+            tamagotchi: {
+                ...defaults.tamagotchi,
+                ...parsed.tamagotchi,
+                // Versão anterior não tinha lastCarenciaUpdate -- a carência
+                // era medida direto de lastInteraction. Herdar dela mantém o
+                // decaimento contínuo; sem isso o padrão (agora) entraria no
+                // lugar e o tempo com o app fechado seria perdoado, ao
+                // contrário do que acontece com fome/higiene.
+                lastCarenciaUpdate: parsed.tamagotchi?.lastCarenciaUpdate
+                    ?? parsed.tamagotchi?.lastInteraction
+                    ?? defaults.tamagotchi.lastCarenciaUpdate
+            },
             googleSync: { ...defaults.googleSync, ...parsed.googleSync },
             settings: {
                 ...defaults.settings,
