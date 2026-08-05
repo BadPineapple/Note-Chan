@@ -63,6 +63,11 @@ const NOTIFY_GRACE_MS = 15 * 60 * 1000;
 const ALARM_SIZE = { width: 340, height: 300 };
 const SNOOZE_MS = 5 * 60 * 1000;
 
+// Sincronização de fundo com o Google. Sem ela, quem deixa o widget aberto o
+// dia inteiro nunca sincroniza -- as outras duas portas de entrada são a
+// transição bandeja -> expandido e o botão em Configurações.
+const GOOGLE_SYNC_INTERVAL_MS = 15 * 60 * 1000;
+
 /* ═════════════════════════════  UTILITÁRIOS  ════════════════════════════ */
 
 // Coalesce gravações disparadas por eventos de alta frequência
@@ -369,6 +374,15 @@ function showWidget() {
     }
 }
 
+// "Abrir o Note-Chan" precisa abrir de verdade: só mostrar a janela deixaria
+// a barrinha do modo bandeja na tela, e nem a sincronização com o Google nem
+// o aviso de eventos do dia rodariam -- os dois estão presos à transição
+// bandeja -> expandido (ver setMode).
+function openWidgetExpanded() {
+    showWidget();
+    setMode(false);
+}
+
 function quickCreate(type) {
     log("[TRAY] Criação rápida:", type);
     if (type === "aniversario") {
@@ -632,8 +646,7 @@ function showPetNotification(body) {
         icon: path.join(__dirname, "../../assets/img/icon.png")
     });
     n.on("click", () => {
-        setMode(false);
-        showWidget();
+        openWidgetExpanded();
         widgetWindow?.webContents.send("open-tama");
     });
     n.show();
@@ -739,7 +752,7 @@ function createTray() {
 
     tray.setToolTip("Note-Chan");
     tray.setContextMenu(Menu.buildFromTemplate([
-        { label: "Abrir Note-Chan", click: showWidget },
+        { label: "Abrir Note-Chan", click: openWidgetExpanded },
         { label: "Captura rápida", click: showQuickCapture },
         { type: "separator" },
         { label: "Nova nota",  click: () => quickCreate("nota") },
@@ -752,7 +765,7 @@ function createTray() {
         { label: "Sair", click: () => app.quit() }
     ]));
 
-    tray.on("double-click", showWidget);
+    tray.on("double-click", openWidgetExpanded);
 }
 
 /* ═══════════════════════  ENDURECIMENTO DE SEGURANÇA  ═══════════════════ */
@@ -772,7 +785,7 @@ app.on("web-contents-created", (event, contents) => {
 
 app.on("second-instance", () => {
     log("[APP] Segunda instância tentou abrir — focando a existente.");
-    showWidget();
+    openWidgetExpanded();
 });
 
 /* ════════════════════════════════  CICLO DE VIDA  ═══════════════════════ */
@@ -797,6 +810,10 @@ app.whenReady().then(() => {
     setInterval(checkEventNotifications, NOTIFY_CHECK_INTERVAL_MS);
     checkTamaNotifications();
     setInterval(checkTamaNotifications, NOTIFY_CHECK_INTERVAL_MS);
+
+    setInterval(() => {
+        if (GoogleAuth.isConnected()) runGoogleSync();
+    }, GOOGLE_SYNC_INTERVAL_MS);
 });
 
 app.on("will-quit", () => {
@@ -811,4 +828,4 @@ app.on("will-quit", () => {
 // App de bandeja: fechar a janela não encerra o processo
 app.on("window-all-closed", () => { /* intencionalmente vazio */ });
 
-app.on("activate", showWidget);
+app.on("activate", openWidgetExpanded);

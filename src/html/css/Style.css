@@ -53,13 +53,22 @@ svg { vertical-align: -2px; flex-shrink: 0; }
    já têm padding próprio). */
 
 /* No modo bandeja só a barra de título fica visível — a janela em si é
-   redimensionada pelo main para caber só nela (ver DOCK_SIZE em Main.js). */
+   redimensionada pelo main para caber só nela (ver DOCK_SIZE em Main.js).
+   Os botões de busca e cronômetro também saem: os painéis deles vivem
+   dentro do #panel escondido, então no modo bandeja o clique não teria
+   onde aparecer -- e como esses botões param a propagação do clique, nem
+   servia pra expandir o widget. Botão que não faz nada é pior que botão
+   ausente. O #timer-badge fica, que é justamente o ponto de ver o tempo
+   correndo com o widget recolhido. */
 #container.collapsed #tabs,
 #container.collapsed #new-btn-container,
 #container.collapsed #search-bar,
 #container.collapsed #timer-panel,
 #container.collapsed #board,
-#container.collapsed #tama-fab {
+#container.collapsed #tama-overlay,
+#container.collapsed #tama-fab,
+#container.collapsed #searchbtn,
+#container.collapsed #timerbtn {
   display: none;
 }
 #container.collapsed #dragbar { margin-bottom: 0; }

@@ -35,18 +35,29 @@ function saveSettings(partial) {
     window.api.send("save-settings", partial);
 }
 
+// Cada save volta como broadcast apply-settings (o main avisa todas as
+// janelas), inclusive esta. Reaplicar um controle que o usuário está mexendo
+// AGORA faz o slider pular pro valor de um instante atrás no meio do
+// arrasto -- por isso o que está em foco fica de fora. A lista de sons, pelo
+// mesmo motivo, só é redesenhada quando o som selecionado muda de verdade.
+let renderedAlarmSound = null;
+
 function applyToUI(s) {
     settings = s;
     document.documentElement.dataset.theme = s.theme;
     themeButtons.forEach(btn => btn.classList.toggle("selected", btn.dataset.theme === s.theme));
 
-    slider.value = s.transparency;
-    sliderValue.textContent = `${s.transparency}%`;
+    if (document.activeElement !== slider) {
+        slider.value = s.transparency;
+        sliderValue.textContent = `${s.transparency}%`;
+    }
 
     alarmEnabledToggle.checked = !!s.alarm?.enabled;
-    alarmVolumeSlider.value = s.alarm?.volume ?? 70;
-    alarmVolumeValue.textContent = `${alarmVolumeSlider.value}%`;
-    renderAlarmSoundList();
+    if (document.activeElement !== alarmVolumeSlider) {
+        alarmVolumeSlider.value = s.alarm?.volume ?? 70;
+        alarmVolumeValue.textContent = `${alarmVolumeSlider.value}%`;
+    }
+    if (renderedAlarmSound !== (s.alarm?.sound ?? null)) renderAlarmSoundList();
 
     recorders.toggleWidget.textContent = s.shortcuts.toggleWidget || "(nenhum)";
     recorders.quickCapture.textContent = s.shortcuts.quickCapture || "(nenhum)";
@@ -92,6 +103,7 @@ let stopAlarmPreview = null;
 const ALARM_SOUND_ICONS = { sininho: "bell", caixinha: "music", passarinho: "bird", classico: "alarm-clock" };
 
 function renderAlarmSoundList() {
+    renderedAlarmSound = settings.alarm?.sound ?? null;
     alarmSoundList.innerHTML = "";
     Object.entries(AlarmSounds.SOUNDS).forEach(([key, sound]) => {
         const row = document.createElement("div");
