@@ -86,6 +86,18 @@ function eventToGooglePayload(evt) {
     return body;
 }
 
+// Corpo do PATCH. Em evento que JÁ existia na agenda do usuário (importado,
+// não criado por nós) manda só o que ele pode ter editado aqui: nosso modelo
+// de recorrência é pobre perto do que o Google aceita, e reenviá-lo trocaria
+// um "toda segunda e quarta até dezembro" por um "toda semana" -- o mesmo
+// vale pra description, que aqui só sabe guardar um link. PATCH é mesclagem:
+// campo omitido fica como está do lado de lá.
+function eventPatchPayload(evt) {
+    const full = eventToGooglePayload(evt);
+    if (evt.foreign === false) return full;
+    return { summary: full.summary, start: full.start, end: full.end };
+}
+
 function birthdayToGooglePayload(b) {
     const [, mm, dd] = b.date.split("-");
     const y = b.date.split("-")[0];
@@ -101,11 +113,31 @@ function birthdayToGooglePayload(b) {
 
 /* ═════════════════════  GOOGLE  ->  NOTE-CHAN (campos)  ═══════════════════ */
 
+// A string do Google vem no fuso do EVENTO ("...T14:00:00-03:00"). Recortar
+// os caracteres direto mostraria a hora de parede de lá; converter pra Date
+// e ler os componentes locais dá a hora certa no relógio do usuário.
+function localDateAndTime(isoWithOffset) {
+    const dt = new Date(isoWithOffset);
+    if (Number.isNaN(dt.getTime())) return { date: null, time: null };
+    const p = n => String(n).padStart(2, "0");
+    return {
+        date: `${dt.getFullYear()}-${p(dt.getMonth() + 1)}-${p(dt.getDate())}`,
+        time: `${p(dt.getHours())}:${p(dt.getMinutes())}`
+    };
+}
+
+// null quando o evento vem sem início utilizável -- o chamador pula em vez de
+// derrubar a sincronização inteira num TypeError.
 function googleToEventFields(gEvt) {
     const isAllDay = !!gEvt.start?.date;
-    const date = isAllDay ? gEvt.start.date : gEvt.start.dateTime.slice(0, 10);
-    const startTime = isAllDay ? null : gEvt.start.dateTime.slice(11, 16);
-    const endTime = isAllDay || !gEvt.end?.dateTime ? null : gEvt.end.dateTime.slice(11, 16);
+    if (!isAllDay && !gEvt.start?.dateTime) return null;
+
+    const start = isAllDay ? { date: gEvt.start.date, time: null } : localDateAndTime(gEvt.start.dateTime);
+    if (!start.date) return null;
+
+    const date = start.date;
+    const startTime = start.time;
+    const endTime = isAllDay || !gEvt.end?.dateTime ? null : localDateAndTime(gEvt.end.dateTime).time;
     const freq = extractFreq(gEvt.recurrence);
     const recurrence = (freq && FREQ_TO_RECURRENCE[freq]) || "none";
     const desc = (gEvt.description || "").trim();
@@ -121,18 +153,26 @@ function googleToEventFields(gEvt) {
 
 /* ═══════════════════════════════  SYNC  ════════════════════════════════ */
 
+// Só tira da fila o que realmente saiu do Google (404/410 contam: já não
+// existe lá). O que falhar por rede/token fica na fila pra próxima tentativa
+// -- esvaziar antes de tentar deixava o compromisso órfão na agenda pra
+// sempre. Filtra em vez de reatribuir a lista inteira porque uma exclusão
+// nova pode entrar na fila enquanto esperamos as respostas.
 async function processPendingDeletes(data) {
-    const ids = data.googleSync.pendingDeletes.splice(0, data.googleSync.pendingDeletes.length);
+    const ids = [...data.googleSync.pendingDeletes];
+    if (ids.length === 0) return;
+
+    const done = new Set();
     for (const id of ids) {
         try {
             const res = await apiFetch(`/calendars/${CALENDAR_ID}/events/${encodeURIComponent(id)}`, { method: "DELETE" });
-            if (!res.ok && res.status !== 404 && res.status !== 410) {
-                warn("[GOOGLE] Falha ao excluir evento remoto", id, res.status);
-            }
+            if (res.ok || res.status === 404 || res.status === 410) done.add(id);
+            else warn("[GOOGLE] Falha ao excluir evento remoto (fica na fila)", id, res.status);
         } catch (e) {
-            warn("[GOOGLE] Erro ao excluir evento remoto", id, e.message);
+            warn("[GOOGLE] Erro ao excluir evento remoto (fica na fila)", id, e.message);
         }
     }
+    data.googleSync.pendingDeletes = data.googleSync.pendingDeletes.filter(id => !done.has(id));
 }
 
 async function listGoogleEvents(data) {
@@ -188,6 +228,7 @@ function applyGoogleEventsToLocal(data, googleItems) {
                 data.birthdays = data.birthdays.filter(b => b.id !== birthdayId);
             } else {
                 local.googleEventId = gEvt.id;
+                local.googleSyncedAt = Date.now();
             }
             continue;
         }
@@ -198,9 +239,16 @@ function applyGoogleEventsToLocal(data, googleItems) {
             if (gEvt.status === "cancelled") {
                 data.events = data.events.filter(e => e.id !== noteChanId);
             } else {
-                Object.assign(local, googleToEventFields(gEvt));
+                const fields = googleToEventFields(gEvt);
+                if (!fields) { warn("[GOOGLE] Evento sem início utilizável, ignorado:", gEvt.id); continue; }
+                Object.assign(local, fields);
                 local.googleEventId = gEvt.id;
+                local.foreign = false; // tem nossa tag: fomos nós que criamos
+                // updatedAt e googleSyncedAt saem iguais de propósito: o que
+                // acabou de vir do Google não pode contar como "alterado
+                // localmente" na próxima subida (ver pushLocalChanges).
                 local.updatedAt = Date.now();
+                local.googleSyncedAt = local.updatedAt;
             }
             continue;
         }
@@ -211,19 +259,25 @@ function applyGoogleEventsToLocal(data, googleItems) {
             if (existing) data.events = data.events.filter(e => e.id !== existing.id);
             continue;
         }
+        const fields = googleToEventFields(gEvt);
+        if (!fields) { warn("[GOOGLE] Evento sem início utilizável, ignorado:", gEvt.id); continue; }
         if (existing) {
-            Object.assign(existing, googleToEventFields(gEvt));
+            Object.assign(existing, fields);
             existing.updatedAt = Date.now();
+            existing.googleSyncedAt = existing.updatedAt;
+            existing.foreign = true;
         } else {
-            const fields = googleToEventFields(gEvt);
+            const stamp = Date.now();
             data.events.push({
                 id: crypto.randomUUID(),
                 ...fields,
                 completedDates: [],
                 items: [],
                 googleEventId: gEvt.id,
-                createdAt: Date.now(),
-                updatedAt: Date.now()
+                foreign: true, // já existia na agenda; ver eventPatchPayload
+                createdAt: stamp,
+                updatedAt: stamp,
+                googleSyncedAt: stamp
             });
         }
     }
@@ -239,6 +293,8 @@ async function pushNewLocalItems(data) {
             });
             if (!res.ok) { warn("[GOOGLE] Falha ao criar evento", evt.title, res.status); continue; }
             evt.googleEventId = (await res.json()).id;
+            evt.googleSyncedAt = Date.now();
+            evt.foreign = false; // criado por nós; ver eventPatchPayload
         } catch (e) {
             warn("[GOOGLE] Erro ao criar evento", evt.title, e.message);
         }
@@ -253,8 +309,68 @@ async function pushNewLocalItems(data) {
             });
             if (!res.ok) { warn("[GOOGLE] Falha ao criar aniversário", b.name, res.status); continue; }
             b.googleEventId = (await res.json()).id;
+            b.googleSyncedAt = Date.now();
         } catch (e) {
             warn("[GOOGLE] Erro ao criar aniversário", b.name, e.message);
+        }
+    }
+}
+
+// Edição local em item JÁ sincronizado. Antes só a criação subia: renomear ou
+// mudar a data de um evento nunca chegava no Google e, como o Google vence na
+// leitura, a própria sincronização seguinte desfazia a edição em silêncio.
+//
+// "Alterado localmente" = updatedAt mais novo que googleSyncedAt (carimbado
+// aqui e em applyGoogleEventsToLocal). Roda ANTES da leitura, então o Google
+// continua ganhando em conflito de verdade -- alterado dos dois lados desde a
+// última sincronização volta com o valor de lá.
+async function patchItem(googleEventId, payload, label) {
+    const res = await apiFetch(`/calendars/${CALENDAR_ID}/events/${encodeURIComponent(googleEventId)}`, {
+        method: "PATCH",
+        body: JSON.stringify(payload)
+    });
+    if (res.ok) return true;
+    // 404/410: sumiu do lado de lá (excluído direto no Google) -- devolver o
+    // vínculo pra null faz o pushNewLocalItems recriar logo abaixo.
+    if (res.status === 404 || res.status === 410) return null;
+    warn("[GOOGLE] Falha ao atualizar", label, res.status);
+    return false;
+}
+
+// Itens sincronizados por uma versão anterior não têm googleSyncedAt: sem
+// isso todos apareceriam como "alterados localmente" e a primeira
+// sincronização depois da atualização subiria a agenda inteira de uma vez.
+// Adota o estado atual como já sincronizado -- daí pra frente só edição de
+// verdade sobe.
+function adoptLegacyItems(data) {
+    const stamp = Date.now();
+    for (const item of [...data.events, ...data.birthdays]) {
+        if (item.googleEventId && item.googleSyncedAt === undefined) {
+            item.googleSyncedAt = Math.max(item.updatedAt || 0, stamp);
+        }
+    }
+}
+
+async function pushLocalChanges(data) {
+    const changed = item => item.googleEventId && (item.updatedAt || 0) > (item.googleSyncedAt || 0);
+
+    for (const evt of data.events.filter(changed)) {
+        try {
+            const result = await patchItem(evt.googleEventId, eventPatchPayload(evt), evt.title);
+            if (result === null) { evt.googleEventId = null; evt.googleSyncedAt = 0; }
+            else if (result) evt.googleSyncedAt = Date.now();
+        } catch (e) {
+            warn("[GOOGLE] Erro ao atualizar evento", evt.title, e.message);
+        }
+    }
+
+    for (const b of data.birthdays.filter(changed)) {
+        try {
+            const result = await patchItem(b.googleEventId, birthdayToGooglePayload(b), b.name);
+            if (result === null) { b.googleEventId = null; b.googleSyncedAt = 0; }
+            else if (result) b.googleSyncedAt = Date.now();
+        } catch (e) {
+            warn("[GOOGLE] Erro ao atualizar aniversário", b.name, e.message);
         }
     }
 }
@@ -264,7 +380,9 @@ async function runSync(data) {
     data.googleSync = data.googleSync || { syncToken: null, lastSyncAt: null, pendingDeletes: [] };
 
     try {
+        adoptLegacyItems(data);
         await processPendingDeletes(data);
+        await pushLocalChanges(data);   // sobe edições ANTES de ler (ver pushLocalChanges)
         const { items, nextSyncToken } = await listGoogleEvents(data);
         applyGoogleEventsToLocal(data, items);
         await pushNewLocalItems(data);

@@ -27,9 +27,10 @@ function defaultData() {
             fome: 100,
             carencia: 100,
             higiene: 100,
-            lastUpdate: Date.now(),      // referência do decaimento de fome/higiene (tempo puro)
-            lastInteraction: Date.now(), // referência do decaimento de carência (uso do app)
-            lastLowNotified: {}          // { fome, higiene, carencia, vida } -> timestamp do último aviso (main)
+            lastUpdate: Date.now(),         // referência do decaimento de fome/higiene (tempo puro)
+            lastInteraction: Date.now(),    // última interação de verdade do usuário (uso do app)
+            lastCarenciaUpdate: Date.now(), // referência do decaimento de carência (ver applyTamaDecay)
+            lastLowNotified: {}             // { fome, higiene, carencia, vida } -> timestamp do último aviso (main)
         },
         widget: { collapsed: true, width: 320, height: 480, activeTab: "notas" },
         settings: {

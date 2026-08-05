@@ -144,10 +144,10 @@ ipcMain.on("save-data", (event, payload) => {
     data.notes = Array.isArray(payload.notes) ? payload.notes : data.notes;
     data.lists = Array.isArray(payload.lists) ? payload.lists : data.lists;
     if (Array.isArray(payload.birthdays)) {
-        data.birthdays = mergeMainOwnedList(data.birthdays, payload.birthdays, ["googleEventId"]);
+        data.birthdays = mergeMainOwnedList(data.birthdays, payload.birthdays, ["googleEventId", "googleSyncedAt"]);
     }
     if (Array.isArray(payload.events)) {
-        data.events = mergeMainOwnedList(data.events, payload.events, ["lastNotified", "lastNoTimeNotified", "googleEventId"]);
+        data.events = mergeMainOwnedList(data.events, payload.events, ["lastNotified", "lastNoTimeNotified", "googleEventId", "googleSyncedAt", "foreign"]);
     }
     if (Array.isArray(payload.tags)) {
         // Tag removida em Configurações — tira o id de todo item que ainda
@@ -269,7 +269,13 @@ function pushSyncedDataToRenderers() {
     settingsWindow?.webContents.send("birthdays-updated", data.birthdays);
 }
 
-async function runGoogleSync() {
+// Uma sincronização por vez. Sem essa trava, abrir o widget e clicar
+// "Sincronizar agora" (ou recolher/expandir em sequência) dispara dois
+// pushNewLocalItems em paralelo -- os dois veem o mesmo evento ainda sem
+// googleEventId e criam o MESMO compromisso duas vezes na agenda.
+let syncInFlight = null;
+
+async function doGoogleSync() {
     const result = await GoogleCalendarSync.runSync(data);
     if (result.ok) {
         log("[GOOGLE] Sincronização concluída —", result.count, "eventos processados");
@@ -279,6 +285,15 @@ async function runGoogleSync() {
         warn("[GOOGLE] Sincronização falhou:", result.error);
     }
     return result;
+}
+
+function runGoogleSync() {
+    if (syncInFlight) {
+        log("[GOOGLE] Sincronização já em andamento — reaproveitando a atual.");
+        return syncInFlight;
+    }
+    syncInFlight = doGoogleSync().finally(() => { syncInFlight = null; });
+    return syncInFlight;
 }
 
 ipcMain.handle("google-auth-status", () => ({
@@ -586,14 +601,19 @@ function checkEventNotifications() {
         const diff = now - target;
         if (diff < 0) continue; // ainda não chegou a hora
 
-        evt.lastNotified = occ;
-        changed = true;
-
         if (diff > NOTIFY_GRACE_MS) {
+            // Perdeu a janela de tolerância (app fechado/dormindo): marca só
+            // pra não tocar tarde demais.
+            evt.lastNotified = occ;
+            changed = true;
             log("[EVENTS] Ocorrência muito atrasada, alarme suprimido:", evt.title, occ);
         } else if (data.settings.alarm.enabled) {
+            evt.lastNotified = occ;
+            changed = true;
             fireAlarm(evt);
         }
+        // Alarme desligado e ainda dentro da janela: NÃO marca como notificado
+        // -- reativar o alarme nos próximos minutos ainda pega essa ocorrência.
     }
 
     if (changed) debouncedSaveData();

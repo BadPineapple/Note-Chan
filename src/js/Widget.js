@@ -4,7 +4,10 @@
 
 let data = {
     notes: [], lists: [], events: [], tags: [],
-    tamagotchi: { level: 1, xp: 0, vida: 100, fome: 100, carencia: 100, higiene: 100, lastUpdate: Date.now(), lastInteraction: Date.now() },
+    tamagotchi: {
+        level: 1, xp: 0, vida: 100, fome: 100, carencia: 100, higiene: 100,
+        lastUpdate: Date.now(), lastInteraction: Date.now(), lastCarenciaUpdate: Date.now()
+    },
     widget: { collapsed: true, activeTab: "notas" }
 };
 let activeTab = "notas";
@@ -522,9 +525,16 @@ function applyTamaDecay() {
         tama.lastUpdate = now;
     }
 
-    const interactionElapsedMin = (now - (tama.lastInteraction || now)) / 60000;
-    if (interactionElapsedMin > 0) {
-        tama.carencia = tamaClamp(tama.carencia - (interactionElapsedMin / TAMA_CARENCIA_MIN_TO_ZERO) * 100);
+    // Carência precisa do próprio marcador de "última vez que o decaimento
+    // foi aplicado", igual lastUpdate faz pra fome/higiene. Medir sempre a
+    // partir de lastInteraction e SUBTRAIR o resultado do valor atual conta o
+    // mesmo tempo de novo a cada chamada: com o tick de 3 min a carência
+    // zerava em ~1h em vez das 10h projetadas. lastInteraction continua
+    // existindo como registro de quando o usuário de fato interagiu.
+    const carenciaElapsedMin = (now - (tama.lastCarenciaUpdate || tama.lastInteraction || now)) / 60000;
+    if (carenciaElapsedMin > 0) {
+        tama.carencia = tamaClamp(tama.carencia - (carenciaElapsedMin / TAMA_CARENCIA_MIN_TO_ZERO) * 100);
+        tama.lastCarenciaUpdate = now;
     }
 
     // Vida não decai pelo relógio puro -- só sofre quando algum dos outros 3
@@ -545,7 +555,11 @@ function applyTamaDecay() {
 // Marca que o usuário interagiu de verdade com o app/bichinho agora --
 // única coisa que "segura" o decaimento de carência (ver applyTamaDecay).
 function tamaRegisterInteraction() {
-    data.tamagotchi.lastInteraction = Date.now();
+    const now = Date.now();
+    data.tamagotchi.lastInteraction = now;
+    // zera também o relógio do decaimento, senão o tempo já "pago" antes da
+    // interação voltaria a ser descontado na próxima passada.
+    data.tamagotchi.lastCarenciaUpdate = now;
 }
 
 let tamaSaveTimer = null;
@@ -1833,7 +1847,10 @@ const VALID_TABS = new Set(["notas", "listas", "eventos"]);
 window.api.invoke("get-data").then(loaded => {
     data = {
         notes: [], lists: [], events: [], tags: [],
-        tamagotchi: { level: 1, xp: 0, vida: 100, fome: 100, carencia: 100, higiene: 100, lastUpdate: Date.now(), lastInteraction: Date.now() },
+        tamagotchi: {
+        level: 1, xp: 0, vida: 100, fome: 100, carencia: 100, higiene: 100,
+        lastUpdate: Date.now(), lastInteraction: Date.now(), lastCarenciaUpdate: Date.now()
+    },
         ...loaded
     };
     applySettings(data.settings);
