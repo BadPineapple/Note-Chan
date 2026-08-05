@@ -3,7 +3,7 @@ const { contextBridge, ipcRenderer, webUtils } = require("electron");
 
 // Eventos que o main pode enviar ao renderer
 const RECEIVE = new Set([
-    "quick-create", "set-mode", "focus-tab", "apply-settings", "notes-updated", "reset", "tags-updated",
+    "quick-create", "set-mode", "apply-settings", "notes-updated", "reset", "tags-updated",
     "alarm-ring", "open-tama", "events-updated", "birthdays-updated"
 ]);
 

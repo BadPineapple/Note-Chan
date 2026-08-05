@@ -51,8 +51,16 @@ const tamaBarEls = {
 
 /* ══════════════════════════════  PERSISTÊNCIA  ══════════════════════════ */
 
+// Enquanto o get-data do boot não voltar, `data` ainda são os arrays vazios
+// do topo do arquivo. Um save disparado nesse intervalo mandaria listas
+// vazias pro main, que trata item ausente como EXCLUÍDO (ver
+// mergeMainOwnedList em Main.js) -- apagaria tudo e ainda enfileiraria a
+// exclusão no Google. Nenhuma gravação sai antes do boot terminar.
+let booted = false;
+
 let saveTimer = null;
 function scheduleSave() {
+    if (!booted) return;
     clearTimeout(saveTimer);
     saveTimer = setTimeout(() => {
         window.api.send("save-data", {
@@ -81,10 +89,15 @@ function formatDate(ts) {
     });
 }
 
+// textContent -> innerHTML escapa & < >, mas NÃO aspas -- e vários pontos
+// daqui interpolam o resultado DENTRO de um atributo (value="${...}"), onde
+// uma aspa fecharia o atributo e injetaria markup. Não é hipotético: o link
+// de um evento pode vir da description de um convite recebido no Google
+// Agenda, ou seja, texto de terceiro.
 function escapeHtml(str) {
     const div = document.createElement("div");
     div.textContent = str ?? "";
-    return div.innerHTML;
+    return div.innerHTML.replace(/"/g, "&quot;").replace(/'/g, "&#39;");
 }
 
 // window.confirm() é um diálogo NATIVO e bloqueante — nesta janela
@@ -564,6 +577,7 @@ function tamaRegisterInteraction() {
 
 let tamaSaveTimer = null;
 function scheduleTamaSave() {
+    if (!booted) return; // mesmo motivo do scheduleSave
     clearTimeout(tamaSaveTimer);
     tamaSaveTimer = setTimeout(() => {
         window.api.send("save-data", { tamagotchi: data.tamagotchi });
@@ -1760,8 +1774,7 @@ window.api.on("apply-settings", applySettings);
 // widget está aberto — atualiza a lista local e redesenha (pills e o
 // seletor dependem de data.tags).
 window.api.on("tags-updated", (tags) => {
-    data.tags = tags;
-    renderBoard();
+    applyRemoteUpdate(() => { data.tags = tags; });
 });
 
 /* ══════════════════════════  ARQUIVO SOLTO VIRA NOTA  ═════════════════════ */
@@ -1817,27 +1830,74 @@ panel.addEventListener("drop", async (e) => {
 
 /* ══════════════════════════════  TRAY: CRIAÇÃO RÁPIDA  ═══════════════════ */
 
-window.api.on("quick-create", (type) => {
+function runQuickCreate(type) {
     if (type === "lista") { setActiveTab("listas"); createList(); }
     else if (type === "evento") { setActiveTab("eventos"); createEvent(); }
     else { setActiveTab("notas"); createNote(); }
+}
+
+// Criar antes do boot terminar montaria o item sobre os arrays vazios e ele
+// sumiria quando o get-data chegasse -- guarda e executa depois.
+let pendingQuickCreate = null;
+
+window.api.on("quick-create", (type) => {
+    if (!booted) { pendingQuickCreate = type; return; }
+    runQuickCreate(type);
 });
 
-window.api.on("focus-tab", (tab) => setActiveTab(tab));
+/* ═══════════  ATUALIZAÇÕES DO MAIN SEM ATROPELAR A EDIÇÃO  ════════════════ */
+// Redesenhar o board no meio de uma digitação destrói o campo em foco e
+// perde o que ainda não foi salvo (o save daqui tem 400 ms de atraso).
+// Enquanto houver edição em andamento dentro do board, a atualização espera
+// e é aplicada assim que o foco sair.
+
+let pendingRemoteUpdates = [];
+
+function isEditingInBoard() {
+    return board.contains(document.activeElement) && isEditingContext();
+}
+
+function applyRemoteUpdate(fn) {
+    if (isEditingInBoard()) { pendingRemoteUpdates.push(fn); return; }
+    fn();
+    renderBoard();
+}
+
+function flushRemoteUpdates() {
+    if (pendingRemoteUpdates.length === 0 || isEditingInBoard()) return;
+    const updates = pendingRemoteUpdates;
+    pendingRemoteUpdates = [];
+    updates.forEach(fn => fn());
+    renderBoard();
+}
+
+document.addEventListener("focusout", () => setTimeout(flushRemoteUpdates, 0));
 
 // Captura rápida cria a nota direto no main (não tem acesso ao estado do
-// widget) — quando o widget está aberto, sincroniza a lista local com a
-// que o main já persistiu, sem precisar de outro round-trip get-data.
+// widget). Só ACRESCENTA o que ainda não existe aqui em vez de substituir a
+// lista: a cópia do main pode estar até ~900 ms atrás (400 de atraso no save
+// daqui + 500 no dele) e desfaria a edição em andamento.
 window.api.on("notes-updated", (notes) => {
-    data.notes = notes;
-    if (activeTab === "notas") renderBoard();
+    const known = new Set(data.notes.map(n => n.id));
+    const added = notes.filter(n => !known.has(n.id));
+    if (added.length === 0) return;
+    applyRemoteUpdate(() => { data.notes = [...added, ...data.notes]; });
 });
 
 // Sincronização com o Google Agenda alterou os eventos (criou, atualizou ou
-// removeu um evento cancelado do lado de lá) — ver Main.js.
+// removeu um evento cancelado do lado de lá) — ver Main.js. Mescla por id: o
+// que foi editado aqui mais recentemente (updatedAt mais novo) permanece,
+// pelo mesmo motivo do notes-updated acima.
+function mergeEventsFromMain(incoming) {
+    const localById = new Map(data.events.map(e => [e.id, e]));
+    data.events = incoming.map(inc => {
+        const local = localById.get(inc.id);
+        return local && (local.updatedAt || 0) > (inc.updatedAt || 0) ? local : inc;
+    });
+}
+
 window.api.on("events-updated", (events) => {
-    data.events = events;
-    if (activeTab === "eventos") renderBoard();
+    applyRemoteUpdate(() => mergeEventsFromMain(events));
 });
 
 /* ═══════════════════════════════  BOOT  ══════════════════════════════════ */
@@ -1853,6 +1913,7 @@ window.api.invoke("get-data").then(loaded => {
     },
         ...loaded
     };
+    booted = true;
     applySettings(data.settings);
     setContainerMode(data.widget?.collapsed !== false);
     const savedTab = data.widget?.activeTab;
@@ -1860,4 +1921,10 @@ window.api.invoke("get-data").then(loaded => {
     applyTamaDecay();
     updateTamaUI();
     scheduleTamaSave();
+
+    if (pendingQuickCreate) {
+        const type = pendingQuickCreate;
+        pendingQuickCreate = null;
+        runQuickCreate(type);
+    }
 });

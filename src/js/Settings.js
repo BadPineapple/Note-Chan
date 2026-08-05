@@ -4,6 +4,14 @@
 let settings = { theme: "gold", transparency: 60, shortcuts: {}, alarm: { enabled: true, volume: 70, sound: "sininho" } };
 let recordingAction = null;
 
+// Enquanto o get-data do boot não voltar, `birthdays` e `tags` ainda são
+// arrays vazios. Um save disparado nesse intervalo mandaria a lista vazia
+// pro main, que trata item ausente como EXCLUÍDO (ver mergeMainOwnedList em
+// Main.js) -- caminho real: bandeja -> "Novo aniversariante" com esta janela
+// fechada, que abre a janela e manda o quick-create logo depois do
+// did-finish-load, sem garantia de que o get-data já respondeu.
+let booted = false;
+
 const themeButtons   = document.querySelectorAll(".theme-swatch");
 const slider         = document.getElementById("transparency-slider");
 const sliderValue    = document.getElementById("transparency-value");
@@ -205,10 +213,13 @@ const BIRTHDAY_CATEGORY_ICONS = { familia: "users", amigo: "user", trabalho: "br
 function newId() { return crypto.randomUUID(); }
 function now() { return Date.now(); }
 
+// Escapa aspas também -- o resultado é interpolado dentro de atributos
+// (value="${...}"), onde uma aspa fecharia o atributo. Mesmo motivo do
+// escapeHtml do Widget.js, ver comentário lá.
 function escapeHtml(str) {
     const div = document.createElement("div");
     div.textContent = str ?? "";
-    return div.innerHTML;
+    return div.innerHTML.replace(/"/g, "&quot;").replace(/'/g, "&#39;");
 }
 
 function formatBR(iso) {
@@ -244,6 +255,7 @@ function birthdayBadge(dateStr) {
 
 let bdaySaveTimer = null;
 function scheduleBdaySave() {
+    if (!booted) return; // ver comentário de `booted` no topo do arquivo
     clearTimeout(bdaySaveTimer);
     bdaySaveTimer = setTimeout(() => window.api.send("save-data", { birthdays }), 400);
 }
@@ -391,8 +403,13 @@ function createBirthday() {
 
 bdayNewBtn.addEventListener("click", createBirthday);
 
+// Criar antes do boot terminar montaria o aniversariante sobre o array vazio
+// e ele sumiria quando o get-data chegasse -- guarda e executa depois.
+let pendingQuickCreate = false;
+
 window.api.on("quick-create", (type) => {
     if (type !== "aniversario") return;
+    if (!booted) { pendingQuickCreate = true; return; }
     setSettingsTab("aniversarios");
     createBirthday();
 });
@@ -405,6 +422,7 @@ const tagNewBtn = document.getElementById("tag-new-btn");
 
 let tagSaveTimer = null;
 function scheduleTagSave() {
+    if (!booted) return; // ver comentário de `booted` no topo do arquivo
     clearTimeout(tagSaveTimer);
     tagSaveTimer = setTimeout(() => window.api.send("save-data", { tags }), 400);
 }
@@ -582,17 +600,56 @@ window.api.on("apply-settings", (s) => { if (!recordingAction) applyToUI(s); });
 
 // Sincronização com o Google Agenda alterou os aniversariantes (criou o
 // vínculo googleEventId ou removeu um cancelado do lado de lá) -- ver Main.js.
-window.api.on("birthdays-updated", (updated) => {
-    birthdays = updated;
+// Igual ao widget: mescla por id preferindo o que foi editado aqui mais
+// recentemente, e espera o foco sair antes de redesenhar, senão o card em
+// edição é destruído no meio da digitação. Os campos de propriedade do main
+// (googleEventId etc.) não se perdem ao manter o objeto local -- o próprio
+// main os repõe no save (ver mergeMainOwnedList em Main.js).
+let pendingBdayUpdate = null;
+
+function isEditingBdayBoard() {
+    const el = document.activeElement;
+    if (!el || !bdayBoard.contains(el)) return false;
+    return el.isContentEditable || el.tagName === "INPUT" || el.tagName === "SELECT";
+}
+
+function applyBdayUpdate(fn) {
+    if (isEditingBdayBoard()) { pendingBdayUpdate = fn; return; }
+    fn();
     renderBdayBoard();
+}
+
+document.addEventListener("focusout", () => setTimeout(() => {
+    if (!pendingBdayUpdate || isEditingBdayBoard()) return;
+    const fn = pendingBdayUpdate;
+    pendingBdayUpdate = null;
+    fn();
+    renderBdayBoard();
+}, 0));
+
+window.api.on("birthdays-updated", (updated) => {
+    applyBdayUpdate(() => {
+        const localById = new Map(birthdays.map(b => [b.id, b]));
+        birthdays = updated.map(inc => {
+            const local = localById.get(inc.id);
+            return local && (local.updatedAt || 0) > (inc.updatedAt || 0) ? local : inc;
+        });
+    });
 });
 
 window.api.invoke("get-data").then(loaded => {
+    booted = true;
     applyToUI(loaded.settings);
     birthdays = loaded.birthdays || [];
     renderBdayBoard();
     tags = loaded.tags || [];
     renderTagBoard();
+
+    if (pendingQuickCreate) {
+        pendingQuickCreate = false;
+        setSettingsTab("aniversarios");
+        createBirthday();
+    }
 });
 
 window.api.invoke("get-app-version").then(version => {
