@@ -4,7 +4,7 @@ const { contextBridge, ipcRenderer, webUtils } = require("electron");
 // Eventos que o main pode enviar ao renderer
 const RECEIVE = new Set([
     "quick-create", "set-mode", "focus-tab", "apply-settings", "notes-updated", "reset", "tags-updated",
-    "alarm-ring"
+    "alarm-ring", "open-tama", "events-updated", "birthdays-updated"
 ]);
 
 // Mensagens fire-and-forget do renderer para o main
@@ -16,7 +16,10 @@ const SEND = new Set([
 ]);
 
 // Rotas com resposta
-const INVOKE = new Set(["get-data"]);
+const INVOKE = new Set([
+    "get-data", "get-app-version",
+    "google-auth-status", "google-auth-start", "google-disconnect", "google-sync-now"
+]);
 
 contextBridge.exposeInMainWorld("api", {
     send: (channel, payload) => {

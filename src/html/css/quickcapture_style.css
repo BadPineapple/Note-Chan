@@ -12,6 +12,8 @@ html, body {
 
 *, *::before, *::after { box-sizing: border-box; }
 
+svg { vertical-align: -2px; flex-shrink: 0; }
+
 #qc-container {
   display: flex;
   align-items: center;
@@ -26,7 +28,7 @@ html, body {
 }
 
 #qc-icon {
-  font-size: 1.2em;
+  display: flex;
   flex-shrink: 0;
 }
 
