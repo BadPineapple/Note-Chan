@@ -1,5 +1,5 @@
 /* ────────────────────────────────  Main.js  ─────────────────────────────── */
-const { app, Tray, Menu, BrowserWindow, ipcMain, nativeImage, screen, shell, globalShortcut } = require("electron");
+const { app, Tray, Menu, BrowserWindow, ipcMain, nativeImage, screen, shell, globalShortcut, Notification } = require("electron");
 const path = require("path");
 
 // PATHS PRECISA SER O PRIMEIRO MÓDULO INTERNO — define app.setName() antes
@@ -9,6 +9,8 @@ const PATHS = require("./Paths");
 const { loadData, saveData, saveDataSync } = require("./DataManager");
 const { log, warn } = require("./Logger");
 const EventUtils = require("./EventUtils");
+const GoogleAuth = require("./GoogleAuth");
+const GoogleCalendarSync = require("./GoogleCalendarSync");
 
 /* ═══════════════════════════  INSTÂNCIA ÚNICA  ═══════════════════════════ */
 if (!app.requestSingleInstanceLock()) {
@@ -88,9 +90,19 @@ function computeBounds(collapsed) {
 }
 
 function setMode(collapsed) {
-    if (data.widget.collapsed !== collapsed) log("[WIDGET] Modo:", collapsed ? "bandeja" : "expandido");
+    const wasCollapsed = data.widget.collapsed;
+    if (wasCollapsed !== collapsed) log("[WIDGET] Modo:", collapsed ? "bandeja" : "expandido");
     data.widget.collapsed = collapsed;
     debouncedSaveData();
+
+    // "Abrir o app" (sair da bandeja) é o gatilho dos eventos sem horário do
+    // dia (ver checkNoTimeEventsToday) e da sincronização com o Google -- só
+    // na transição de verdade, não em toda chamada (ex.: reaplicar o mesmo
+    // modo). Sync roda em segundo plano, sem travar a expansão da janela.
+    if (wasCollapsed && !collapsed) {
+        checkNoTimeEventsToday();
+        if (GoogleAuth.isConnected()) runGoogleSync();
+    }
 
     if (!widgetWindow || widgetWindow.isDestroyed()) return;
     widgetWindow.setBounds(computeBounds(collapsed), true);
@@ -100,24 +112,42 @@ function setMode(collapsed) {
 /* ══════════════════════════════  IPC  ════════════════════════════════════ */
 
 ipcMain.handle("get-data", () => data);
+ipcMain.handle("get-app-version", () => app.getVersion());
 
-// Notas, listas e o conteúdo dos eventos são de propriedade do renderer;
-// modo/tamanho da janela e o controle de notificações já disparadas
-// (event.lastNotified) são de propriedade do main — cada lado só
-// sobrescreve o que é seu. Eventos são mesclados por id preservando
-// lastNotified, senão uma edição qualquer no renderer (que nunca viu
-// atualizações de lastNotified feitas pelo main entre uma sync e outra)
-// apagaria esse controle e duplicaria notificações.
+// Notas e listas são de propriedade do renderer. Eventos e aniversariantes
+// têm campos de propriedade do MAIN (lastNotified/lastNoTimeNotified,
+// googleEventId) que o renderer nunca vê -- por isso são mesclados por id
+// preservando esses campos, senão qualquer edição no renderer apagaria o
+// vínculo com o Google e duplicaria notificações. Itens que existiam antes
+// e sumiram do payload foram excluídos no renderer -- se tinham
+// googleEventId, entram na fila pra excluir no Google na próxima sync (ver
+// GoogleCalendarSync.js).
+function queueGoogleDeletes(removed) {
+    const ids = removed.filter(item => item.googleEventId).map(item => item.googleEventId);
+    if (ids.length) data.googleSync.pendingDeletes.push(...ids);
+}
+
+function mergeMainOwnedList(existingList, incoming, ownedFields) {
+    const incomingIds = new Set(incoming.map(item => item.id));
+    queueGoogleDeletes(existingList.filter(item => !incomingIds.has(item.id)));
+    return incoming.map(item => {
+        const existing = existingList.find(e => e.id === item.id);
+        if (!existing) return item;
+        const preserved = {};
+        for (const field of ownedFields) preserved[field] = existing[field];
+        return { ...item, ...preserved };
+    });
+}
+
 ipcMain.on("save-data", (event, payload) => {
     if (!payload) return;
     data.notes = Array.isArray(payload.notes) ? payload.notes : data.notes;
     data.lists = Array.isArray(payload.lists) ? payload.lists : data.lists;
-    data.birthdays = Array.isArray(payload.birthdays) ? payload.birthdays : data.birthdays;
+    if (Array.isArray(payload.birthdays)) {
+        data.birthdays = mergeMainOwnedList(data.birthdays, payload.birthdays, ["googleEventId"]);
+    }
     if (Array.isArray(payload.events)) {
-        data.events = payload.events.map(incoming => {
-            const existing = data.events.find(e => e.id === incoming.id);
-            return existing ? { ...incoming, lastNotified: existing.lastNotified } : incoming;
-        });
+        data.events = mergeMainOwnedList(data.events, payload.events, ["lastNotified", "lastNoTimeNotified", "googleEventId"]);
     }
     if (Array.isArray(payload.tags)) {
         // Tag removida em Configurações — tira o id de todo item que ainda
@@ -139,6 +169,16 @@ ipcMain.on("save-data", (event, payload) => {
     }
     if (payload.widget && payload.widget.activeTab) {
         data.widget.activeTab = payload.widget.activeTab;
+    }
+    if (payload.tamagotchi) {
+        // lastLowNotified é controlado só pelo main (ver checkTamaNotifications)
+        // -- o renderer nunca sabe desse campo, então preservar evita que
+        // cada save do widget reset o cooldown dos avisos de status baixo.
+        data.tamagotchi = {
+            ...data.tamagotchi,
+            ...payload.tamagotchi,
+            lastLowNotified: data.tamagotchi.lastLowNotified
+        };
     }
     debouncedSaveData();
 });
@@ -191,11 +231,17 @@ ipcMain.on("quick-capture-cancel", () => hideQuickCapture());
 
 ipcMain.on("quit-app", () => { log("[APP] Saída solicitada pelo usuário."); app.quit(); });
 
-// O "✕"/Esc do widget agora recolhe pro modo bandeja em vez de sumir da tela
-// por completo (só "Sair" na bandeja do sistema encerra de verdade) — e
-// fecha a janela de Configurações junto, se estiver aberta.
+// O "✕"/Esc do widget recolhe pro modo bandeja primeiro (não some da tela
+// direto). Se já estiver em modo bandeja, esse mesmo "✕"/Esc agora esconde
+// a janela de vez (continua rodando na bandeja do sistema — só "Sair" no
+// menu da bandeja encerra o processo de verdade) — e fecha a janela de
+// Configurações junto, se estiver aberta.
 ipcMain.on("close-widget", () => {
-    setMode(true);
+    if (data.widget.collapsed) {
+        widgetWindow?.hide();
+    } else {
+        setMode(true);
+    }
     if (settingsWindow && !settingsWindow.isDestroyed()) settingsWindow.close();
 });
 
@@ -215,6 +261,45 @@ ipcMain.on("open-link", (event, url) => {
         warn("[EVENTS] Link inválido ignorado:", url);
     }
 });
+
+/* ═══════════════════════  SINCRONIZAÇÃO COM O GOOGLE  ═════════════════════ */
+
+function pushSyncedDataToRenderers() {
+    widgetWindow?.webContents.send("events-updated", data.events);
+    settingsWindow?.webContents.send("birthdays-updated", data.birthdays);
+}
+
+async function runGoogleSync() {
+    const result = await GoogleCalendarSync.runSync(data);
+    if (result.ok) {
+        log("[GOOGLE] Sincronização concluída —", result.count, "eventos processados");
+        debouncedSaveData();
+        pushSyncedDataToRenderers();
+    } else if (result.error !== "not-connected") {
+        warn("[GOOGLE] Sincronização falhou:", result.error);
+    }
+    return result;
+}
+
+ipcMain.handle("google-auth-status", () => ({
+    configured: GoogleAuth.isConfigured(),
+    connected: GoogleAuth.isConnected(),
+    email: GoogleAuth.getEmail(),
+    lastSyncAt: data.googleSync.lastSyncAt
+}));
+
+ipcMain.handle("google-auth-start", async () => {
+    const result = await GoogleAuth.startOAuthFlow(); // rejeita a promise no invoke se falhar/cancelar
+    runGoogleSync(); // primeira sincronização logo após conectar, sem esperar o usuário abrir/fechar o widget
+    return { connected: true, email: result.email };
+});
+
+ipcMain.handle("google-disconnect", async () => {
+    await GoogleAuth.disconnect();
+    return { connected: false };
+});
+
+ipcMain.handle("google-sync-now", () => runGoogleSync());
 
 /* ═════════════════════════════  ÍCONE DA BANDEJA  ════════════════════════ */
 
@@ -445,7 +530,8 @@ function showNextAlarm() {
         title: next.title,
         time: next.startTime,
         volume: data.settings.alarm.volume,
-        sound: data.settings.alarm.sound
+        sound: data.settings.alarm.sound,
+        tamagotchi: data.tamagotchi
     };
     const send = () => alarmWindow.webContents.send("alarm-ring", payload);
     if (alarmWindow.webContents.isLoading()) alarmWindow.webContents.once("did-finish-load", send);
@@ -513,6 +599,116 @@ function checkEventNotifications() {
     if (changed) debouncedSaveData();
 }
 
+/* ═════════════════════  NOTIFICAÇÕES DO BICHINHO  ═════════════════════════ */
+// Notificação nativa do SO (leve, sem som/popup bloqueante — diferente do
+// alarme de evento) "na voz" do bichinho: pedidos simpáticos, nunca cobrança
+// ou culpa. Clicar nela abre o widget direto na aba dele.
+
+function showPetNotification(body) {
+    if (!Notification.isSupported()) return;
+    const n = new Notification({
+        title: "Note-Chan",
+        body,
+        icon: path.join(__dirname, "../../assets/img/icon.png")
+    });
+    n.on("click", () => {
+        setMode(false);
+        showWidget();
+        widgetWindow?.webContents.send("open-tama");
+    });
+    n.show();
+}
+
+const TAMA_LOW_THRESHOLD = 25;
+const TAMA_NOTIFY_COOLDOWN_MS = 3 * 60 * 60 * 1000; // 3h entre avisos do MESMO status
+
+// Frases em primeira pessoa, pedindo em vez de cobrar — nada de "vou morrer"
+// ou culpa, só um pedido gentil (ver conversa: notificação "de forma
+// saudável"). Mais de uma opção por status pra não repetir sempre a mesma.
+const TAMA_LOW_MESSAGES = {
+    fome: [
+        "Tô com uma fominha aqui... que tal completar uma tarefa? Isso me alimenta!",
+        "Meu estômago tá roncando um pouco. Uma tarefinha concluída ajudaria bastante."
+    ],
+    higiene: [
+        "Já faz um tempinho que eu não tomo um banho...",
+        "Acho que eu podia dar uma arrumada em mim. Bora na aba Higiene?"
+    ],
+    carencia: [
+        "Senti sua falta! Dá uma passadinha aqui quando puder?",
+        "Que tal um carinho rapidinho? Prometo que só isso já me alegra."
+    ],
+    vida: [
+        "Tô meio pra baixo... um pouco de atenção nos meus outros status já ajuda a melhorar."
+    ]
+};
+
+function pickTamaMessage(stat) {
+    const options = TAMA_LOW_MESSAGES[stat];
+    return options[Math.floor(Math.random() * options.length)];
+}
+
+// Roda no mesmo intervalo de checkEventNotifications. Cada status baixo só
+// avisa de novo depois do cooldown — sem isso viraria notificação a cada 30s
+// enquanto o status continuar baixo, o oposto de "saudável".
+function checkTamaNotifications() {
+    const tama = data.tamagotchi;
+    if (!tama) return;
+
+    tama.lastLowNotified = tama.lastLowNotified || {};
+    const now = Date.now();
+    let changed = false;
+
+    for (const stat of ["fome", "higiene", "carencia", "vida"]) {
+        if (tama[stat] >= TAMA_LOW_THRESHOLD) continue;
+        const last = tama.lastLowNotified[stat] || 0;
+        if (now - last < TAMA_NOTIFY_COOLDOWN_MS) continue;
+
+        tama.lastLowNotified[stat] = now;
+        changed = true;
+        log("[TAMA] Status baixo, notificando:", stat, tama[stat]);
+        showPetNotification(pickTamaMessage(stat));
+    }
+
+    if (changed) debouncedSaveData();
+}
+
+/* ═══════════════════  EVENTOS SEM HORÁRIO (AO ABRIR O APP)  ═══════════════ */
+// Eventos sem hora marcada não entram no alarme (checkEventNotifications
+// exige startTime) -- em vez disso, avisa quando o usuário abre o widget no
+// dia do evento. lastNoTimeNotified guarda a DATA (não timestamp) já
+// avisada, então só notifica uma vez por dia por evento.
+
+function checkNoTimeEventsToday() {
+    if (!Array.isArray(data.events) || data.events.length === 0) return;
+
+    const today = EventUtils.todayISO();
+    const todays = [];
+    let changed = false;
+
+    for (const evt of data.events) {
+        if (evt.startTime) continue; // esses já têm o alarme
+        const occ = EventUtils.getNextOccurrence(evt);
+        if (occ !== today) continue;
+        if (evt.lastNoTimeNotified === today) continue;
+
+        evt.lastNoTimeNotified = today;
+        changed = true;
+        todays.push(evt.title);
+    }
+
+    if (!changed) return;
+    debouncedSaveData();
+
+    if (todays.length === 1) {
+        showPetNotification(`Hoje tem "${todays[0]}" na agenda! Não esquece.`);
+    } else if (todays.length <= 3) {
+        showPetNotification(`Hoje tem: ${todays.join(", ")}.`);
+    } else {
+        showPetNotification(`Você tem ${todays.length} eventos sem horário marcado hoje.`);
+    }
+}
+
 function createTray() {
     try {
         tray = new Tray(buildTrayIcon());
@@ -566,6 +762,7 @@ app.whenReady().then(() => {
         app.setAppUserModelId("com.renato.notechan");
     }
 
+    GoogleAuth.loadStoredToken();
     createTray();
     createWidgetWindow();
     createQuickCaptureWindow();
@@ -578,6 +775,8 @@ app.whenReady().then(() => {
 
     checkEventNotifications();
     setInterval(checkEventNotifications, NOTIFY_CHECK_INTERVAL_MS);
+    checkTamaNotifications();
+    setInterval(checkTamaNotifications, NOTIFY_CHECK_INTERVAL_MS);
 });
 
 app.on("will-quit", () => {

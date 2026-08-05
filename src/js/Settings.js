@@ -78,14 +78,19 @@ alarmVolumeSlider.addEventListener("input", () => {
 
 let stopAlarmPreview = null;
 
+// AlarmSounds.js é compartilhado com o popup de alarme (que não carrega
+// Icons.js), então o label lá fica em texto puro -- o ícone por som mora só
+// aqui, que é quem efetivamente usa innerHTML pra desenhar a lista.
+const ALARM_SOUND_ICONS = { sininho: "bell", caixinha: "music", passarinho: "bird", classico: "alarm-clock" };
+
 function renderAlarmSoundList() {
     alarmSoundList.innerHTML = "";
     Object.entries(AlarmSounds.SOUNDS).forEach(([key, sound]) => {
         const row = document.createElement("div");
         row.className = "alarm-sound-row" + (settings.alarm?.sound === key ? " selected" : "");
         row.innerHTML = `
-            <span class="alarm-sound-label">${sound.label}</span>
-            <button type="button" class="alarm-sound-preview" title="Testar">▶</button>
+            <span class="alarm-sound-label">${Icons.svg(ALARM_SOUND_ICONS[key], 13)} ${sound.label}</span>
+            <button type="button" class="alarm-sound-preview" title="Testar">${Icons.svg("play", 10)}</button>
         `;
         row.addEventListener("click", () => {
             saveSettings({ alarm: { sound: key } });
@@ -192,7 +197,10 @@ const bdayExpanded = new Set();
 const bdayBoard = document.getElementById("bday-board");
 const bdayNewBtn = document.getElementById("bday-new-btn");
 
-const BIRTHDAY_CATEGORY_LABELS = { "": "Sem categoria", familia: "👪 Família", amigo: "👫 Amigo", trabalho: "💼 Trabalho" };
+// Texto puro (usado no <select>, que não renderiza HTML/ícone dentro de
+// <option>) -- BIRTHDAY_CATEGORY_ICONS é só pro badge, que aceita innerHTML.
+const BIRTHDAY_CATEGORY_LABELS = { "": "Sem categoria", familia: "Família", amigo: "Amigo", trabalho: "Trabalho" };
+const BIRTHDAY_CATEGORY_ICONS = { familia: "users", amigo: "user", trabalho: "briefcase" };
 
 function newId() { return crypto.randomUUID(); }
 function now() { return Date.now(); }
@@ -220,15 +228,16 @@ function armDeleteConfirm(btn, onConfirm) {
     btn.textContent = "?";
     btn._armTimer = setTimeout(() => {
         btn.classList.remove("confirm-armed");
-        btn.textContent = "✕";
+        btn.innerHTML = Icons.svg("x", 12);
     }, 2500);
 }
 
 function birthdayBadge(dateStr) {
     const occ = EventUtils.nextBirthdayOccurrence(dateStr);
     const today = EventUtils.todayISO();
-    if (occ === today) return { text: "🎂 Hoje!", cls: "today" };
-    if (occ === EventUtils.addInterval(today, "daily")) return { text: "🎂 Amanhã", cls: "soon" };
+    const cakeIcon = Icons.svg("cake", 11);
+    if (occ === today) return { text: `${cakeIcon} Hoje!`, cls: "today" };
+    if (occ === EventUtils.addInterval(today, "daily")) return { text: `${cakeIcon} Amanhã`, cls: "soon" };
     const diffDays = Math.round((new Date(occ) - new Date(today)) / 86400000);
     return { text: `${formatBR(occ)} · faltam ${diffDays}d`, cls: "" };
 }
@@ -266,7 +275,7 @@ function birthdayCardNode(birthday) {
     card.dataset.id = birthday.id;
 
     card.innerHTML = `
-        <div class="card-delete" title="Excluir aniversariante">✕</div>
+        <div class="card-delete" title="Excluir aniversariante">${Icons.svg("x", 12)}</div>
         <div class="card-header">
             <span class="card-title" spellcheck="false">${escapeHtml(birthday.name)}</span>
         </div>
@@ -294,7 +303,9 @@ function birthdayCardNode(birthday) {
     function refreshPreview() {
         const badge = birthdayBadge(birthday.date);
         const age = EventUtils.ageAtOccurrence(birthday.date, EventUtils.nextBirthdayOccurrence(birthday.date));
-        const catLabel = birthday.category ? BIRTHDAY_CATEGORY_LABELS[birthday.category] : "";
+        const catLabel = birthday.category
+            ? `${Icons.svg(BIRTHDAY_CATEGORY_ICONS[birthday.category], 11)} ${BIRTHDAY_CATEGORY_LABELS[birthday.category]}`
+            : "";
         preview.innerHTML =
             `<span class="birthday-badge ${badge.cls}">${badge.text}</span>` +
             (age ? ` faz ${age} anos` : "") +
@@ -418,7 +429,7 @@ function tagCardNode(tag) {
     card.dataset.id = tag.id;
 
     card.innerHTML = `
-        <div class="card-delete" title="Excluir tag">✕</div>
+        <div class="card-delete" title="Excluir tag">${Icons.svg("x", 12)}</div>
         <div class="tag-name-row">
             <span class="tag-color-dot" style="background:#${tag.color}"></span>
             <span class="tag-name" contenteditable="false" spellcheck="false">${escapeHtml(tag.name)}</span>
@@ -431,8 +442,13 @@ function tagCardNode(tag) {
     `;
 
     const nameEl = card.querySelector(".tag-name");
-    nameEl.addEventListener("dblclick", (e) => {
+    // Um clique só (não dois) -- diferente do título de nota/lista/evento, a
+    // tag não tem nada mais reagindo ao clique aqui (não expande/recolhe
+    // nada), então dblclick só criava uma pegadinha: o cursor já diz "text"
+    // mas só entrava em edição no segundo clique.
+    nameEl.addEventListener("click", (e) => {
         e.stopPropagation();
+        if (nameEl.isContentEditable) return; // já editando -- deixa o clique só posicionar o cursor
         nameEl.contentEditable = "true";
         nameEl.focus();
         document.execCommand("selectAll", false, null);
@@ -490,9 +506,86 @@ function createTag() {
 
 tagNewBtn.addEventListener("click", createTag);
 
+/* ══════════════════════════════  GOOGLE AGENDA  ═══════════════════════════ */
+
+const googleStatusText   = document.getElementById("google-status-text");
+const googleConnectBtn   = document.getElementById("google-connect-btn");
+const googleConnectedBox = document.getElementById("google-connected-box");
+const googleSyncBtn      = document.getElementById("google-sync-btn");
+const googleSyncHint     = document.getElementById("google-sync-hint");
+const googleDisconnectBtn = document.getElementById("google-disconnect-btn");
+
+function formatSyncTime(ts) {
+    if (!ts) return "Nunca sincronizado.";
+    return "Última sincronização: " + new Date(ts).toLocaleString("pt-BR", {
+        day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit"
+    });
+}
+
+function applyGoogleStatus(status) {
+    if (!status.configured) {
+        googleStatusText.textContent = "Não configurado (falta GoogleAuthConfig.js).";
+        googleConnectBtn.classList.add("hidden");
+        googleConnectedBox.classList.add("hidden");
+        return;
+    }
+    if (status.connected) {
+        googleStatusText.textContent = "Conectado" + (status.email ? ` como ${status.email}` : "");
+        googleConnectBtn.classList.add("hidden");
+        googleConnectedBox.classList.remove("hidden");
+        googleSyncHint.textContent = formatSyncTime(status.lastSyncAt);
+    } else {
+        googleStatusText.textContent = "Não conectado.";
+        googleConnectBtn.classList.remove("hidden");
+        googleConnectedBox.classList.add("hidden");
+    }
+}
+
+googleConnectBtn.addEventListener("click", async () => {
+    googleConnectBtn.disabled = true;
+    googleConnectBtn.textContent = "Abrindo navegador...";
+    try {
+        const status = await window.api.invoke("google-auth-start");
+        applyGoogleStatus({ configured: true, ...status, lastSyncAt: null });
+    } catch (e) {
+        googleStatusText.textContent = "Falha ao conectar: " + e.message;
+    } finally {
+        googleConnectBtn.disabled = false;
+        googleConnectBtn.textContent = "Conectar";
+    }
+});
+
+googleDisconnectBtn.addEventListener("click", async () => {
+    const status = await window.api.invoke("google-disconnect");
+    applyGoogleStatus({ configured: true, ...status });
+});
+
+googleSyncBtn.addEventListener("click", async () => {
+    googleSyncBtn.disabled = true;
+    googleSyncBtn.textContent = "Sincronizando...";
+    try {
+        const result = await window.api.invoke("google-sync-now");
+        googleSyncHint.textContent = result.ok
+            ? formatSyncTime(Date.now())
+            : "Falha na sincronização: " + (result.error || "erro desconhecido");
+    } finally {
+        googleSyncBtn.disabled = false;
+        googleSyncBtn.innerHTML = `${Icons.svg("refresh-cw", 14)} Sincronizar agora`;
+    }
+});
+
+window.api.invoke("google-auth-status").then(applyGoogleStatus);
+
 /* ══════════════════════════════  SINCRONIZAÇÃO  ═══════════════════════════ */
 
 window.api.on("apply-settings", (s) => { if (!recordingAction) applyToUI(s); });
+
+// Sincronização com o Google Agenda alterou os aniversariantes (criou o
+// vínculo googleEventId ou removeu um cancelado do lado de lá) -- ver Main.js.
+window.api.on("birthdays-updated", (updated) => {
+    birthdays = updated;
+    renderBdayBoard();
+});
 
 window.api.invoke("get-data").then(loaded => {
     applyToUI(loaded.settings);
@@ -500,4 +593,8 @@ window.api.invoke("get-data").then(loaded => {
     renderBdayBoard();
     tags = loaded.tags || [];
     renderTagBoard();
+});
+
+window.api.invoke("get-app-version").then(version => {
+    document.getElementById("app-version").textContent = `v${version}`;
 });

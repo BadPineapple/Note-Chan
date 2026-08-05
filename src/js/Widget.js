@@ -2,7 +2,11 @@
 // Renderer do widget. Roda em sandbox (sem Node) — toda comunicação com o
 // processo principal passa por window.api (ver preload.js).
 
-let data = { notes: [], lists: [], events: [], tags: [], widget: { collapsed: true, activeTab: "notas" } };
+let data = {
+    notes: [], lists: [], events: [], tags: [],
+    tamagotchi: { level: 1, xp: 0, vida: 100, fome: 100, carencia: 100, higiene: 100, lastUpdate: Date.now(), lastInteraction: Date.now() },
+    widget: { collapsed: true, activeTab: "notas" }
+};
 let activeTab = "notas";
 const expanded = new Set();
 
@@ -13,6 +17,34 @@ const tabButtons  = document.querySelectorAll(".tab-btn");
 const searchBtn   = document.getElementById("searchbtn");
 const searchBar   = document.getElementById("search-bar");
 const searchInput = document.getElementById("search-input");
+
+const timerBtn         = document.getElementById("timerbtn");
+const timerPanel       = document.getElementById("timer-panel");
+const timerBadge       = document.getElementById("timer-badge");
+const timerDisplay     = document.getElementById("timer-display");
+const timerModeButtons = document.querySelectorAll(".timer-mode-btn");
+const timerDurationRow = document.getElementById("timer-duration-row");
+const timerMinutesEl   = document.getElementById("timer-minutes");
+const timerSecondsEl   = document.getElementById("timer-seconds");
+const timerStartBtn    = document.getElementById("timer-start-btn");
+const timerResetBtn    = document.getElementById("timer-reset-btn");
+
+const tamaFab        = document.getElementById("tama-fab");
+const tamaFabSprite   = document.getElementById("tama-fab-sprite");
+const tamaOverlay     = document.getElementById("tama-overlay");
+const tamaBackBtn     = document.getElementById("tama-back-btn");
+const tamaLevelEl     = document.getElementById("tama-level");
+const tamaXpFill      = document.getElementById("tama-xp-fill");
+const tamaStage       = document.getElementById("tama-stage");
+const tamaSprite      = document.getElementById("tama-sprite");
+const tamaTabButtons  = document.querySelectorAll(".tama-tab-btn");
+const tamaActionsEl   = document.getElementById("tama-actions");
+const tamaBarEls = {
+    vida: document.getElementById("tama-bar-vida"),
+    fome: document.getElementById("tama-bar-fome"),
+    carencia: document.getElementById("tama-bar-carencia"),
+    higiene: document.getElementById("tama-bar-higiene")
+};
 
 /* ══════════════════════════════  PERSISTÊNCIA  ══════════════════════════ */
 
@@ -68,7 +100,7 @@ function armDeleteConfirm(btn, onConfirm) {
     btn.textContent = "?";
     btn._armTimer = setTimeout(() => {
         btn.classList.remove("confirm-armed");
-        btn.textContent = "✕";
+        btn.innerHTML = Icons.svg("x", 12);
     }, 2500);
 }
 
@@ -122,12 +154,13 @@ function renderTagPicker(container, item) {
     });
 }
 
+const RECURRENCE_ICON = Icons.svg("repeat", 11);
 const RECURRENCE_LABELS = {
     none: "Não se repete",
-    daily: "🔁 Diário",
-    weekly: "🔁 Semanal",
-    monthly: "🔁 Mensal",
-    yearly: "🔁 Anual"
+    daily: `${RECURRENCE_ICON} Diário`,
+    weekly: `${RECURRENCE_ICON} Semanal`,
+    monthly: `${RECURRENCE_ICON} Mensal`,
+    yearly: `${RECURRENCE_ICON} Anual`
 };
 
 function formatBR(iso) {
@@ -137,7 +170,7 @@ function formatBR(iso) {
 
 // { text, cls } prontos pra virar um .event-badge
 function occurrenceBadge(occDate) {
-    if (!occDate) return { text: "✓ Concluído", cls: "done" };
+    if (!occDate) return { text: `${Icons.svg("check", 11)} Concluído`, cls: "done" };
     const today = EventUtils.todayISO();
     if (occDate === today) return { text: "Hoje", cls: "today" };
     if (occDate === EventUtils.addInterval(today, "daily")) return { text: "Amanhã", cls: "soon" };
@@ -180,6 +213,8 @@ function isSearchOpen() {
 }
 
 function openSearch() {
+    closeTimerPanel();
+    closeTama();
     searchBar.classList.add("open");
     searchInput.focus();
     searchInput.select();
@@ -215,6 +250,496 @@ searchInput.addEventListener("keydown", (e) => {
         e.stopPropagation();
         closeSearch();
     }
+});
+
+// Foco saiu do campo (clicou em outro lugar, trocou de aba, etc.) -> some
+// sozinha, mesmo padrão de recolher usado nos cards (ver focusout em
+// noteCardNode/listCardNode/eventCardNode).
+searchInput.addEventListener("blur", () => {
+    setTimeout(() => {
+        if (document.activeElement === searchInput) return;
+        closeSearch();
+    }, 0);
+});
+
+/* ═══════════════════════  CRONÔMETRO / TEMPORIZADOR  ══════════════════════ */
+// Cronômetro conta pra cima a partir de zero; temporizador conta pra baixo a
+// partir da duração escolhida. Os dois compartilham o mesmo relógio interno
+// (accumulatedMs + timestamp de início) pra não perder precisão em pausas
+// longas -- nunca soma "1 tick" por segundo, sempre recalcula a partir de
+// Date.now(). O tempo rodando aparece discreto na dragbar (#timer-badge),
+// visível mesmo com o painel fechado ou o widget em modo bandeja.
+
+let timerMode = "stopwatch"; // "stopwatch" | "timer"
+let timerRunning = false;
+let timerAccumulatedMs = 0;      // tempo já contado antes da pausa atual
+let timerRunStartTs = null;      // Date.now() de quando rodou/retomou -- null se pausado
+let timerDurationMs = 5 * 60000; // só usado no modo "timer"
+let timerTickHandle = null;
+let stopTimerSound = null;
+
+function formatTimerMs(ms) {
+    const totalSec = Math.max(0, Math.round(ms / 1000));
+    const h = Math.floor(totalSec / 3600);
+    const m = Math.floor((totalSec % 3600) / 60);
+    const s = totalSec % 60;
+    const mm = String(m).padStart(2, "0");
+    const ss = String(s).padStart(2, "0");
+    return h > 0 ? `${h}:${mm}:${ss}` : `${mm}:${ss}`;
+}
+
+function timerElapsedMs() {
+    return timerAccumulatedMs + (timerRunning ? Date.now() - timerRunStartTs : 0);
+}
+
+function isTimerOpen() {
+    return timerPanel.classList.contains("open");
+}
+
+// currentMs: o que mostrar AGORA (cronômetro = decorrido; temporizador =
+// restante). done: chegou a zero no modo temporizador.
+function updateTimerDisplay() {
+    const elapsed = timerElapsedMs();
+    let currentMs = elapsed;
+    let done = false;
+    if (timerMode === "timer") {
+        currentMs = timerDurationMs - elapsed;
+        done = currentMs <= 0;
+        if (done) currentMs = 0;
+    }
+
+    const text = formatTimerMs(currentMs);
+    timerDisplay.textContent = text;
+    timerDisplay.classList.toggle("timer-done", done);
+
+    // Badge só aparece com algo rodando ou pausado no meio (elapsed > 0) --
+    // discreto por padrão, some sozinho quando não há nada acontecendo.
+    timerBadge.textContent = (timerRunning || elapsed > 0) ? text : "";
+    timerBadge.classList.toggle("timer-done", done);
+
+    return done;
+}
+
+function stopTimerTick() {
+    if (timerTickHandle) { clearInterval(timerTickHandle); timerTickHandle = null; }
+}
+
+function playTimerDoneSound() {
+    if (stopTimerSound) { stopTimerSound(); stopTimerSound = null; }
+    const alarm = data.settings?.alarm || {};
+    stopTimerSound = AlarmSounds.play(alarm.sound || "sininho", alarm.volume ?? 70);
+    setTimeout(() => { if (stopTimerSound) { stopTimerSound(); stopTimerSound = null; } }, 2600);
+}
+
+function timerFinished() {
+    timerRunning = false;
+    timerRunStartTs = null;
+    timerAccumulatedMs = timerDurationMs;
+    stopTimerTick();
+    updateTimerDisplay();
+    playTimerDoneSound();
+    timerStartBtn.textContent = "▶ Iniciar";
+    // volta pra tela de "escolher duração" depois de um instante, já com o
+    // fim visível (timer-done) por um momento antes de resetar sozinho.
+    setTimeout(() => { if (!timerRunning) resetTimer(); }, 2600);
+}
+
+function startTimerTick() {
+    stopTimerTick();
+    timerTickHandle = setInterval(() => {
+        const done = updateTimerDisplay();
+        if (timerMode === "timer" && done) timerFinished();
+    }, 250);
+}
+
+function isChoosingDuration() {
+    return timerMode === "timer" && !timerRunning && timerAccumulatedMs === 0;
+}
+
+// Rodando OU pausado no meio -- nesses dois casos trocar de modo descartaria
+// progresso, então os botões de modo ficam desabilitados.
+function timerHasProgress() {
+    return timerRunning || timerAccumulatedMs > 0;
+}
+
+function updateDurationRowVisibility() {
+    timerDurationRow.classList.toggle("visible", isChoosingDuration());
+}
+
+// Enquanto o temporizador ainda não começou, o mostrador reflete o que tá
+// nos campos de duração (preview) em vez do relógio -- senão ficaria parado
+// em 00:00 até apertar Iniciar, parecendo que os campos não fazem nada.
+function updateDurationPreview() {
+    if (!isChoosingDuration()) return;
+    const min = Math.max(0, Math.min(180, Number(timerMinutesEl.value) || 0));
+    const sec = Math.max(0, Math.min(59, Number(timerSecondsEl.value) || 0));
+    timerDisplay.textContent = formatTimerMs((min * 60 + sec) * 1000);
+    timerDisplay.classList.remove("timer-done");
+    // escolhendo duração = parado e zerado, então a badge discreta some.
+    timerBadge.textContent = "";
+    timerBadge.classList.remove("timer-done");
+}
+
+function refreshTimerDisplay() {
+    if (isChoosingDuration()) updateDurationPreview();
+    else updateTimerDisplay();
+}
+
+timerMinutesEl.addEventListener("input", updateDurationPreview);
+timerSecondsEl.addEventListener("input", updateDurationPreview);
+
+function setTimerMode(mode) {
+    if (timerHasProgress() || mode === timerMode) return; // troca de modo só zerado
+    // troca de modo sempre começa do zero -- um cronômetro pausado em 0:45
+    // não devia "herdar" esse tempo pro temporizador (nem vice-versa).
+    timerAccumulatedMs = 0;
+    timerMode = mode;
+    timerStartBtn.textContent = "▶ Iniciar";
+    timerModeButtons.forEach(btn => btn.classList.toggle("active", btn.dataset.mode === mode));
+    updateDurationRowVisibility();
+    refreshTimerDisplay();
+}
+
+timerModeButtons.forEach(btn => {
+    btn.addEventListener("click", () => setTimerMode(btn.dataset.mode));
+});
+
+function startPauseTimer() {
+    if (timerRunning) {
+        // pausa
+        timerAccumulatedMs = timerElapsedMs();
+        timerRunning = false;
+        timerRunStartTs = null;
+        stopTimerTick();
+        timerStartBtn.textContent = "▶ Continuar";
+    } else {
+        if (timerMode === "timer" && timerAccumulatedMs === 0) {
+            const min = Math.max(0, Math.min(180, Number(timerMinutesEl.value) || 0));
+            const sec = Math.max(0, Math.min(59, Number(timerSecondsEl.value) || 0));
+            timerDurationMs = (min * 60 + sec) * 1000;
+            if (timerDurationMs <= 0) return; // nada pra contar
+        }
+        timerRunning = true;
+        timerRunStartTs = Date.now();
+        startTimerTick();
+        timerStartBtn.textContent = "⏸ Pausar";
+    }
+    timerModeButtons.forEach(btn => btn.disabled = timerHasProgress());
+    updateDurationRowVisibility();
+    refreshTimerDisplay();
+}
+
+function resetTimer() {
+    timerRunning = false;
+    timerRunStartTs = null;
+    timerAccumulatedMs = 0;
+    stopTimerTick();
+    if (stopTimerSound) { stopTimerSound(); stopTimerSound = null; }
+    timerStartBtn.textContent = "▶ Iniciar";
+    timerModeButtons.forEach(btn => btn.disabled = false);
+    updateDurationRowVisibility();
+    refreshTimerDisplay();
+}
+
+timerStartBtn.addEventListener("click", startPauseTimer);
+timerResetBtn.addEventListener("click", resetTimer);
+
+function openTimerPanel() {
+    closeSearch();
+    closeTama();
+    timerPanel.classList.add("open");
+}
+
+function closeTimerPanel() {
+    timerPanel.classList.remove("open");
+}
+
+function toggleTimerPanel() {
+    if (isTimerOpen()) closeTimerPanel();
+    else openTimerPanel();
+}
+
+timerBtn.addEventListener("click", (e) => {
+    e.stopPropagation();
+    toggleTimerPanel();
+});
+
+// Clicar fora fecha o painel (não tem um único campo pra pendurar um
+// blur/focusout como a busca -- é um painel com vários controles).
+document.addEventListener("click", (e) => {
+    if (!isTimerOpen()) return;
+    if (timerPanel.contains(e.target) || timerBtn.contains(e.target)) return;
+    closeTimerPanel();
+});
+
+updateDurationRowVisibility();
+refreshTimerDisplay();
+
+/* ═══════════════════════════  BICHINHO VIRTUAL  ═══════════════════════════ */
+// Base simples pra evoluir depois: 4 status (vida/fome/carência/higiene) que
+// decaem com o tempo real (recalculado a partir de lastUpdate, não por tick
+// contínuo -- assim funciona certo mesmo se o widget ficar fechado/em
+// segundo plano por horas), nível por XP acumulado, e 3 abas de interação
+// que alimentam/brincam/limpam. O personagem é desenhado num grid de pixels
+// (SVG gerado por fórmula, sem imagem nenhuma) que muda de carinha conforme
+// o humor médio dos status.
+
+const TAMA_XP_PER_LEVEL = 100;
+
+// Cada status decai por um motivo diferente (ver applyTamaDecay):
+// fome/higiene caem só com o tempo passando (higiene mais devagar); carência
+// cai com a falta de INTERAÇÃO direta (abrir o app, brincar, cutucar o
+// bichinho), não com o relógio puro; vida não decai sozinha, só sofre se as
+// outras 3 ficarem ruins por muito tempo (ver applyTamaDecay), e se recupera
+// sozinha quando elas voltam ao normal.
+const TAMA_FOME_MIN_TO_ZERO = 8 * 60;      // ~8h sem comer
+const TAMA_HIGIENE_MIN_TO_ZERO = 20 * 60;  // bem mais devagar que fome
+const TAMA_CARENCIA_MIN_TO_ZERO = 10 * 60; // ~10h sem interação nenhuma
+const TAMA_NEGLECT_THRESHOLD = 25;         // abaixo disso conta como "negligenciado"
+const TAMA_NORMAL_THRESHOLD = 50;          // acima disso conta como "normal" pra vida regenerar
+const TAMA_PET_COOLDOWN_MS = 3000;         // evita fazer carinho em rajada pra inflar carência
+const TAMA_LIVE_TICK_MS = 3 * 60 * 1000;   // recalcula decaimento periodicamente mesmo com o painel fechado
+
+// Desenho do personagem (grid de pixels -> SVG) mora em TamaSprite.js,
+// compartilhado com o popup de alarme -- ver esse arquivo.
+const tamaSpriteSvg = TamaSprite.svg;
+const tamaMood = TamaSprite.mood;
+const tamaClamp = TamaSprite.clamp;
+
+// Recalcula os status a partir do tempo real decorrido desde a última vez
+// que foram tocados -- cobre tanto o app ter ficado fechado por horas quanto
+// o widget só ter ficado parado numa aba diferente. fome/higiene usam
+// lastUpdate (tempo puro); carência usa lastInteraction (só anda quando o
+// usuário de fato interage -- ver tamaRegisterInteraction).
+function applyTamaDecay() {
+    const tama = data.tamagotchi;
+    const now = Date.now();
+
+    const elapsedMin = (now - (tama.lastUpdate || now)) / 60000;
+    if (elapsedMin > 0) {
+        tama.fome = tamaClamp(tama.fome - (elapsedMin / TAMA_FOME_MIN_TO_ZERO) * 100);
+        tama.higiene = tamaClamp(tama.higiene - (elapsedMin / TAMA_HIGIENE_MIN_TO_ZERO) * 100);
+        tama.lastUpdate = now;
+    }
+
+    const interactionElapsedMin = (now - (tama.lastInteraction || now)) / 60000;
+    if (interactionElapsedMin > 0) {
+        tama.carencia = tamaClamp(tama.carencia - (interactionElapsedMin / TAMA_CARENCIA_MIN_TO_ZERO) * 100);
+    }
+
+    // Vida não decai pelo relógio puro -- só sofre quando algum dos outros 3
+    // fica abaixo do limiar POR TEMPO (o dano é proporcional a elapsedMin,
+    // então um mergulho rápido quase não pesa; só a negligência sustentada
+    // por horas de verdade acumula dano). Recupera sozinha quando os 3 estão
+    // acima do "normal" -- nenhuma ação cuida da vida diretamente.
+    const neglected = [tama.fome, tama.higiene, tama.carencia].filter(v => v < TAMA_NEGLECT_THRESHOLD).length;
+    if (neglected > 0 && elapsedMin > 0) {
+        tama.vida = tamaClamp(tama.vida - elapsedMin * 0.35 * neglected);
+    } else if (tama.fome >= TAMA_NORMAL_THRESHOLD && tama.higiene >= TAMA_NORMAL_THRESHOLD && tama.carencia >= TAMA_NORMAL_THRESHOLD) {
+        tama.vida = tamaClamp(tama.vida + elapsedMin * 0.15);
+    }
+    // nunca "morre" nessa versão base -- só fica bem mal cuidado visualmente.
+    tama.vida = Math.max(5, tama.vida);
+}
+
+// Marca que o usuário interagiu de verdade com o app/bichinho agora --
+// única coisa que "segura" o decaimento de carência (ver applyTamaDecay).
+function tamaRegisterInteraction() {
+    data.tamagotchi.lastInteraction = Date.now();
+}
+
+let tamaSaveTimer = null;
+function scheduleTamaSave() {
+    clearTimeout(tamaSaveTimer);
+    tamaSaveTimer = setTimeout(() => {
+        window.api.send("save-data", { tamagotchi: data.tamagotchi });
+    }, 400);
+}
+
+function updateTamaUI() {
+    const tama = data.tamagotchi;
+    const mood = tamaMood(tama);
+    const svg = tamaSpriteSvg(mood);
+
+    tamaSprite.innerHTML = svg;
+    tamaFabSprite.innerHTML = svg;
+
+    tamaLevelEl.textContent = `Nível ${tama.level}`;
+    const xpInLevel = tama.xp % TAMA_XP_PER_LEVEL;
+    tamaXpFill.style.width = `${(xpInLevel / TAMA_XP_PER_LEVEL) * 100}%`;
+
+    Object.entries(tamaBarEls).forEach(([key, el]) => {
+        const value = tama[key];
+        el.style.width = `${value}%`;
+        el.classList.toggle("tama-critical", value < 25);
+    });
+}
+
+function tamaGainXp(amount) {
+    const tama = data.tamagotchi;
+    tama.xp += amount;
+    tama.level = 1 + Math.floor(tama.xp / TAMA_XP_PER_LEVEL);
+}
+
+// Forma "de verdade" de matar a fome do bichinho: completar tarefas/eventos
+// nas outras abas (chamado pelos hooks de checkbox de item e de "marcar
+// evento como feito" mais abaixo). Comida na aba Comida é só bônus manual.
+function tamaOnTaskCompleted(fomeGain, xpGain) {
+    data.tamagotchi.fome = tamaClamp(data.tamagotchi.fome + fomeGain);
+    tamaGainXp(xpGain);
+    updateTamaUI();
+    scheduleTamaSave();
+}
+
+// { icon, label, stat, gain, interaction: true marca lastInteraction (conta
+// como "carência recuperada por atenção"), anim: classe de animação rápida
+// no palco, extra: [[outroStat, valor], ...] pra efeitos colaterais }.
+// Comida aqui é bônus manual/cosmético -- a forma "de verdade" de matar a
+// fome é completar tarefas/eventos nas outras abas (ver hooks mais abaixo).
+const TAMA_ACTIONS = {
+    comida: [
+        { icon: "apple", label: "Maçã", stat: "fome", gain: 5 },
+        { icon: "drumstick", label: "Ração", stat: "fome", gain: 10 },
+        { icon: "cake", label: "Bolo", stat: "fome", gain: 8, extra: [["carencia", 3]] }
+    ],
+    brinquedos: [
+        { icon: "circle", label: "Bola", stat: "carencia", gain: 15, interaction: true },
+        { icon: "wind", label: "Pipa", stat: "carencia", gain: 12, interaction: true, extra: [["fome", -3]] },
+        { icon: "gamepad-2", label: "Videogame", stat: "carencia", gain: 20, interaction: true, extra: [["higiene", -5]] }
+    ],
+    higiene: [
+        { icon: "shower-head", label: "Banho", stat: "higiene", gain: 30, anim: "tama-anim-clean" },
+        { icon: "sparkles", label: "Escovar dentes", stat: "higiene", gain: 12, anim: "tama-anim-clean" },
+        { icon: "scissors", label: "Cortar unhas", stat: "higiene", gain: 10, anim: "tama-anim-clean" }
+    ]
+};
+
+const TAMA_TAB_HINTS = {
+    comida: "A fome recupera sozinha quando você completa tarefas e eventos -- isso aqui é só um extra.",
+    brinquedos: "Brincar (e abrir o app, e cutucar o bichinho) é o que mantém a carência em dia.",
+    higiene: "Só o banho/escovação recupera a higiene."
+};
+
+let tamaActiveTab = "comida";
+let tamaActionsHint = null;
+
+function tamaPlayStageAnim(cls) {
+    tamaStage.classList.remove(cls);
+    // força reflow pra poder re-disparar a mesma animação em sequência
+    void tamaStage.offsetWidth;
+    tamaStage.classList.add(cls);
+    setTimeout(() => tamaStage.classList.remove(cls), 700);
+}
+
+function renderTamaActions() {
+    tamaActionsEl.innerHTML = "";
+
+    if (!tamaActionsHint) {
+        tamaActionsHint = document.createElement("div");
+        tamaActionsHint.id = "tama-actions-hint";
+    }
+    tamaActionsHint.textContent = TAMA_TAB_HINTS[tamaActiveTab] || "";
+    tamaActionsEl.appendChild(tamaActionsHint);
+
+    TAMA_ACTIONS[tamaActiveTab].forEach(action => {
+        const btn = document.createElement("button");
+        btn.type = "button";
+        btn.className = "tama-action-btn";
+        btn.innerHTML = `
+            <span class="tama-action-icon">${Icons.svg(action.icon, 18)}</span>
+            <span class="tama-action-label">${action.label}</span>
+            <span class="tama-action-gain">+${action.gain}</span>
+        `;
+        btn.addEventListener("click", () => {
+            const tama = data.tamagotchi;
+            tama[action.stat] = tamaClamp(tama[action.stat] + action.gain);
+            (action.extra || []).forEach(([stat, delta]) => {
+                tama[stat] = tamaClamp(tama[stat] + delta);
+            });
+            if (action.interaction) tamaRegisterInteraction();
+            if (action.anim) tamaPlayStageAnim(action.anim);
+            tamaGainXp(5);
+            updateTamaUI();
+            scheduleTamaSave();
+        });
+        tamaActionsEl.appendChild(btn);
+    });
+}
+
+function setTamaTab(tab) {
+    tamaActiveTab = tab;
+    tamaTabButtons.forEach(btn => btn.classList.toggle("active", btn.dataset.tab === tab));
+    renderTamaActions();
+}
+
+tamaTabButtons.forEach(btn => {
+    btn.addEventListener("click", () => setTamaTab(btn.dataset.tab));
+});
+
+function isTamaOpen() {
+    return container.classList.contains("tama-open");
+}
+
+function openTama() {
+    closeSearch();
+    closeTimerPanel();
+    applyTamaDecay();
+    updateTamaUI();
+    container.classList.add("tama-open");
+}
+
+function closeTama() {
+    if (!isTamaOpen()) return;
+    container.classList.remove("tama-open");
+    scheduleTamaSave();
+}
+
+// "Clicar nela" (no FAB ou no personagem dentro do painel) é uma das formas
+// de recuperar carência -- cooldown curto pra não dar pra inflar o status só
+// clicando em rajada.
+let tamaPetCooldownUntil = 0;
+function tamaPet() {
+    const now = Date.now();
+    if (now < tamaPetCooldownUntil) return;
+    tamaPetCooldownUntil = now + TAMA_PET_COOLDOWN_MS;
+    data.tamagotchi.carencia = tamaClamp(data.tamagotchi.carencia + 2);
+    tamaRegisterInteraction();
+    tamaPlayStageAnim("tama-anim-pet");
+    updateTamaUI();
+    scheduleTamaSave();
+}
+
+tamaFab.addEventListener("click", (e) => {
+    e.stopPropagation();
+    openTama();
+    tamaPet();
+});
+tamaSprite.addEventListener("click", (e) => {
+    e.stopPropagation();
+    tamaPet();
+});
+tamaBackBtn.addEventListener("click", (e) => {
+    e.stopPropagation();
+    closeTama();
+});
+
+renderTamaActions();
+
+// Recalcula e salva o decaimento periodicamente mesmo com o painel fechado
+// -- sem isso, o main só veria o status do bichinho tão fresco quanto a
+// última vez que o painel foi aberto, e as notificações de status baixo
+// (ver Main.js) ficariam paradas no tempo se o usuário nunca abrir a aba.
+setInterval(() => {
+    applyTamaDecay();
+    if (isTamaOpen()) updateTamaUI();
+    scheduleTamaSave();
+}, TAMA_LIVE_TICK_MS);
+
+// Abre o painel do bichinho quando o usuário clica numa notificação sobre
+// ele (ver Main.js -> showPetNotification).
+window.api.on("open-tama", () => {
+    if (container.classList.contains("collapsed")) return; // main já expandiu antes de mandar isso
+    openTama();
 });
 
 /* ═════════════════════════════  CRIAÇÃO  ═════════════════════════════════ */
@@ -341,7 +866,7 @@ function noteCardNode(note) {
     card.dataset.id = note.id;
 
     card.innerHTML = `
-        <div class="card-delete" draggable="false" title="Excluir nota">✕</div>
+        <div class="card-delete" draggable="false" title="Excluir nota">${Icons.svg("x", 12)}</div>
         <div class="card-header">
             <span class="card-title" spellcheck="false" draggable="false">${escapeHtml(note.title)}</span>
             <div class="card-tags">${cardTagsInnerHtml(note.tagIds)}</div>
@@ -360,6 +885,14 @@ function noteCardNode(note) {
         if (!card.classList.contains("expanded")) return;
         card.classList.remove("expanded");
         expanded.delete(note.id);
+        // Recolher com o título ainda em edição (ex.: nota criada — o
+        // título já nasce editável — fechada antes de terminar de digitar
+        // o nome) commita direto em vez de confiar no evento blur -- o
+        // título pode estar contentEditable=true sem ter foco de verdade
+        // (ex.: janela sem foco do SO quando o card foi criado), e nesse
+        // caso title.blur() não dispararia o handler de blur nenhuma vez,
+        // deixando o título "preso" editável escondido atrás do card.
+        if (title.isContentEditable) commitTitle();
         // nota nunca editada (título e conteúdo ainda no padrão) — some
         // sozinha em vez de acumular cards vazios.
         if (note.title === "Nova nota" && !note.content.trim()) {
@@ -396,20 +929,32 @@ function noteCardNode(note) {
     });
 
     const title = card.querySelector(".card-title");
-    title.addEventListener("dblclick", (e) => {
-        e.stopPropagation();
-        title.contentEditable = "true";
-        title.focus();
-        document.execCommand("selectAll", false, null);
-    });
-    title.addEventListener("click", (e) => { if (title.isContentEditable) e.stopPropagation(); });
-    title.addEventListener("blur", () => {
+
+    // Sai do modo de edição do título e salva o nome -- chamado pelo blur
+    // real (usuário clicou fora) OU direto pelo collapseNote() (ver acima),
+    // já que blur() só dispara o evento se o elemento REALMENTE tinha foco.
+    function commitTitle() {
         title.contentEditable = "false";
         note.title = title.textContent.trim() || "Sem título";
         title.textContent = note.title;
         note.updatedAt = now();
         scheduleSave();
+    }
+
+    title.addEventListener("dblclick", (e) => {
+        e.stopPropagation();
+        // O 1º clique do duplo-clique já alternou expandido/recolhido (ver
+        // handler de .card-header, guardado por e.detail>1 pro 2º clique não
+        // alternar de novo). Se esse 1º clique FECHOU o card, o dblclick não
+        // deve entrar em edição -- senão o título fica "selecionado" piscando
+        // no cabeçalho de um card recolhido, parecendo que reabriu sozinho.
+        if (!card.classList.contains("expanded")) return;
+        title.contentEditable = "true";
+        title.focus();
+        document.execCommand("selectAll", false, null);
     });
+    title.addEventListener("click", (e) => { if (title.isContentEditable) e.stopPropagation(); });
+    title.addEventListener("blur", commitTitle);
     title.addEventListener("keydown", (e) => {
         if (e.key !== "Enter") return;
         e.preventDefault();
@@ -464,7 +1009,7 @@ function listItemNode(list, item, refreshPreview, insertItemAfter) {
     li.innerHTML = `
         <input type="checkbox" draggable="false" ${item.done ? "checked" : ""} />
         <span class="item-text" contenteditable="true" spellcheck="false" draggable="false">${escapeHtml(item.text)}</span>
-        <div class="item-delete" draggable="false" title="Excluir item">✕</div>
+        <div class="item-delete" draggable="false" title="Excluir item">${Icons.svg("x", 10)}</div>
     `;
 
     li.addEventListener("dragstart", (e) => {
@@ -516,6 +1061,11 @@ function listItemNode(list, item, refreshPreview, insertItemAfter) {
         list.updatedAt = now();
         refreshPreview();
         scheduleSave();
+        // Completar uma tarefa alimenta o bichinho automaticamente (ver
+        // BICHINHO VIRTUAL acima) -- só ao MARCAR como feito, não ao
+        // desmarcar. Esse checkbox é compartilhado entre itens de lista e
+        // checklist de evento, então cobre os dois.
+        if (item.done) tamaOnTaskCompleted(6, 3);
     });
 
     const text = li.querySelector(".item-text");
@@ -567,7 +1117,7 @@ function listCardNode(list) {
     const done = list.items.filter(i => i.done).length;
 
     card.innerHTML = `
-        <div class="card-delete" draggable="false" title="Excluir lista">✕</div>
+        <div class="card-delete" draggable="false" title="Excluir lista">${Icons.svg("x", 12)}</div>
         <div class="card-header">
             <span class="card-title" spellcheck="false" draggable="false">${escapeHtml(list.title)}</span>
             <div class="card-tags">${cardTagsInnerHtml(list.tagIds)}</div>
@@ -611,6 +1161,7 @@ function listCardNode(list) {
         if (!card.classList.contains("expanded")) return;
         card.classList.remove("expanded");
         expanded.delete(list.id);
+        if (title.isContentEditable) commitTitle();
         // lista nunca editada (título padrão e sem itens) — some sozinha.
         if (list.title === "Nova lista" && list.items.length === 0) {
             data.lists = data.lists.filter(l => l.id !== list.id);
@@ -639,20 +1190,29 @@ function listCardNode(list) {
     });
 
     const title = card.querySelector(".card-title");
-    title.addEventListener("dblclick", (e) => {
-        e.stopPropagation();
-        title.contentEditable = "true";
-        title.focus();
-        document.execCommand("selectAll", false, null);
-    });
-    title.addEventListener("click", (e) => { if (title.isContentEditable) e.stopPropagation(); });
-    title.addEventListener("blur", () => {
+
+    function commitTitle() {
         title.contentEditable = "false";
         list.title = title.textContent.trim() || "Sem título";
         title.textContent = list.title;
         list.updatedAt = now();
         scheduleSave();
+    }
+
+    title.addEventListener("dblclick", (e) => {
+        e.stopPropagation();
+        // O 1º clique do duplo-clique já alternou expandido/recolhido (ver
+        // handler de .card-header, guardado por e.detail>1 pro 2º clique não
+        // alternar de novo). Se esse 1º clique FECHOU o card, o dblclick não
+        // deve entrar em edição -- senão o título fica "selecionado" piscando
+        // no cabeçalho de um card recolhido, parecendo que reabriu sozinho.
+        if (!card.classList.contains("expanded")) return;
+        title.contentEditable = "true";
+        title.focus();
+        document.execCommand("selectAll", false, null);
     });
+    title.addEventListener("click", (e) => { if (title.isContentEditable) e.stopPropagation(); });
+    title.addEventListener("blur", commitTitle);
     title.addEventListener("keydown", (e) => {
         if (e.key !== "Enter") return;
         e.preventDefault();
@@ -698,7 +1258,7 @@ function eventCardNode(event) {
     card.dataset.id = event.id;
 
     card.innerHTML = `
-        <div class="card-delete" title="Excluir evento">✕</div>
+        <div class="card-delete" title="Excluir evento">${Icons.svg("x", 12)}</div>
         <div class="card-header">
             <span class="card-title" spellcheck="false">${escapeHtml(event.title)}</span>
             <div class="card-tags">${cardTagsInnerHtml(event.tagIds)}</div>
@@ -732,7 +1292,7 @@ function eventCardNode(event) {
                     <label>Link (opcional)
                         <input type="text" class="ev-link" placeholder="https://..." value="${escapeHtml(event.link || "")}" />
                     </label>
-                    <button class="event-open-link" title="Abrir link" ${event.link ? "" : "disabled"}>🔗 Abrir</button>
+                    <button class="event-open-link" title="Abrir link" ${event.link ? "" : "disabled"}>${Icons.svg("external-link", 12)} Abrir</button>
                 </div>
             </div>
             <div class="event-checklist-label">Checklist</div>
@@ -762,7 +1322,9 @@ function eventCardNode(event) {
             `<span class="event-badge ${badge.cls}">${badge.text}</span>${RECURRENCE_LABELS[event.recurrence] || ""}${timeLabel}${checklistLabel}`;
 
         const isDone = !occ;
-        doneBtn.textContent = isDone ? "↺ Desfazer" : "✓ Marcar como feito";
+        doneBtn.innerHTML = isDone
+            ? `${Icons.svg("rotate-ccw", 13)} Desfazer`
+            : `${Icons.svg("check", 13)} Marcar como feito`;
         doneBtn.classList.toggle("is-done", isDone);
         doneBtn.dataset.occ = occ || "";
     }
@@ -808,6 +1370,11 @@ function eventCardNode(event) {
         if (!card.classList.contains("expanded")) return;
         card.classList.remove("expanded");
         expanded.delete(event.id);
+        // Evento recém-criado nasce com o título já em edição (ver
+        // createEvent) -- fechar o card antes de confirmar o nome (Enter/
+        // clicar fora) commita direto em vez de confiar no blur, que só
+        // dispara se o título REALMENTE tinha foco (ver commitTitle acima).
+        if (title.isContentEditable) commitTitle();
     }
 
     card.querySelector(".card-header").addEventListener("click", (e) => {
@@ -824,20 +1391,29 @@ function eventCardNode(event) {
     });
 
     const title = card.querySelector(".card-title");
-    title.addEventListener("dblclick", (e) => {
-        e.stopPropagation();
-        title.contentEditable = "true";
-        title.focus();
-        document.execCommand("selectAll", false, null);
-    });
-    title.addEventListener("click", (e) => { if (title.isContentEditable) e.stopPropagation(); });
-    title.addEventListener("blur", () => {
+
+    function commitTitle() {
         title.contentEditable = "false";
         event.title = title.textContent.trim() || "Sem título";
         title.textContent = event.title;
         event.updatedAt = now();
         scheduleSave();
+    }
+
+    title.addEventListener("dblclick", (e) => {
+        e.stopPropagation();
+        // O 1º clique do duplo-clique já alternou expandido/recolhido (ver
+        // handler de .card-header, guardado por e.detail>1 pro 2º clique não
+        // alternar de novo). Se esse 1º clique FECHOU o card, o dblclick não
+        // deve entrar em edição -- senão o título fica "selecionado" piscando
+        // no cabeçalho de um card recolhido, parecendo que reabriu sozinho.
+        if (!card.classList.contains("expanded")) return;
+        title.contentEditable = "true";
+        title.focus();
+        document.execCommand("selectAll", false, null);
     });
+    title.addEventListener("click", (e) => { if (title.isContentEditable) e.stopPropagation(); });
+    title.addEventListener("blur", commitTitle);
     const dateEl       = card.querySelector(".ev-date");
     const recurrenceEl = card.querySelector(".ev-recurrence");
     const startEl      = card.querySelector(".ev-start");
@@ -948,6 +1524,9 @@ function eventCardNode(event) {
         const occ = doneBtn.dataset.occ;
         if (occ) {
             if (!event.completedDates.includes(occ)) event.completedDates.push(occ);
+            // Concluir um evento inteiro alimenta mais que um item de
+            // checklist (ver BICHINHO VIRTUAL) -- só ao marcar, não ao desfazer.
+            tamaOnTaskCompleted(15, 8);
         } else {
             // já concluído (evento único) — desfaz a última ocorrência confirmada
             event.completedDates = event.completedDates.filter(d => d !== event.date);
@@ -1014,9 +1593,18 @@ function renderBoard() {
 const dragbarIcon = document.getElementById("dragbar-icon");
 
 function setContainerMode(collapsed) {
+    // "Abrir o app" (sair da bandeja) é uma das formas de recuperar carência
+    // -- só conta na transição de verdade bandeja->expandido, não toda vez
+    // que essa função roda (ex.: reaplicar o mesmo modo no boot).
+    const wasCollapsed = container.classList.contains("collapsed");
+    if (wasCollapsed && !collapsed) {
+        data.tamagotchi.carencia = tamaClamp(data.tamagotchi.carencia + 3);
+        tamaRegisterInteraction();
+        scheduleTamaSave();
+    }
     container.classList.toggle("collapsed", collapsed);
     container.classList.toggle("expanded", !collapsed);
-    dragbarIcon.textContent = collapsed ? "⌃" : "⌄";
+    dragbarIcon.innerHTML = Icons.svg(collapsed ? "chevron-up" : "chevron-down", 13);
 }
 
 // Bandeja: clicar na barra de título expande. Expandido: clicar recolhe de volta.
@@ -1114,9 +1702,11 @@ function cycleTab(delta) {
 document.addEventListener("keydown", (e) => {
     if (e.key === "Escape") {
         e.preventDefault();
-        // Busca aberta -> Escape só fecha ela, não o widget inteiro (mesmo
-        // padrão de Escape em campos de busca por aí).
+        // Busca ou painel do cronômetro aberto -> Escape só fecha ele, não o
+        // widget inteiro (mesmo padrão de Escape em campos de busca por aí).
         if (isSearchOpen()) { closeSearch(); return; }
+        if (isTimerOpen()) { closeTimerPanel(); return; }
+        if (isTamaOpen()) { closeTama(); return; }
         window.api.send("close-widget");
         return;
     }
@@ -1201,7 +1791,7 @@ panel.addEventListener("drop", async (e) => {
             try { content = await file.text(); } catch { content = ""; }
         } else {
             const filePath = window.api.getFilePath(file);
-            content = `📎 Arquivo: ${filePath || file.name}`;
+            content = `Arquivo: ${filePath || file.name}`;
         }
         const title = (file.name.replace(/\.[^.]+$/, "") || file.name).slice(0, 60);
         data.notes.unshift({ id: newId(), title, content, createdAt: now(), updatedAt: now() });
@@ -1229,14 +1819,28 @@ window.api.on("notes-updated", (notes) => {
     if (activeTab === "notas") renderBoard();
 });
 
+// Sincronização com o Google Agenda alterou os eventos (criou, atualizou ou
+// removeu um evento cancelado do lado de lá) — ver Main.js.
+window.api.on("events-updated", (events) => {
+    data.events = events;
+    if (activeTab === "eventos") renderBoard();
+});
+
 /* ═══════════════════════════════  BOOT  ══════════════════════════════════ */
 
 const VALID_TABS = new Set(["notas", "listas", "eventos"]);
 
 window.api.invoke("get-data").then(loaded => {
-    data = { notes: [], lists: [], events: [], tags: [], ...loaded };
+    data = {
+        notes: [], lists: [], events: [], tags: [],
+        tamagotchi: { level: 1, xp: 0, vida: 100, fome: 100, carencia: 100, higiene: 100, lastUpdate: Date.now(), lastInteraction: Date.now() },
+        ...loaded
+    };
     applySettings(data.settings);
     setContainerMode(data.widget?.collapsed !== false);
     const savedTab = data.widget?.activeTab;
     setActiveTab(VALID_TABS.has(savedTab) ? savedTab : "notas");
+    applyTamaDecay();
+    updateTamaUI();
+    scheduleTamaSave();
 });

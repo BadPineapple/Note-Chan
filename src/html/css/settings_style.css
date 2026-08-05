@@ -13,8 +13,16 @@ html, body {
 
 *, *::before, *::after { box-sizing: border-box; }
 
+/* Style.css (compartilhado com o widget) põe overflow:hidden em html/body —
+   aqui a janela tem moldura de verdade e conteúdo que pode crescer (mais
+   temas, atalhos, footer...), então cada aba rola por conta própria em vez
+   de cortar o que não cabe nos 620px fixos da janela. */
 #settings-container {
-  padding: 14px 18px 24px;
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  padding: 14px 18px 0;
+  box-sizing: border-box;
 }
 
 section {
@@ -23,6 +31,7 @@ section {
 
 /* ────────────────────────────  Abas do settings  ─────────────────────────── */
 #settings-tabs {
+  flex-shrink: 0;
   display: flex;
   gap: 6px;
   margin-bottom: 16px;
@@ -30,6 +39,10 @@ section {
 
 .stab-btn {
   flex: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
   padding: 8px 4px;
   background: rgb(var(--bg-rgb) / 0.5);
   color: rgb(var(--panel-text-rgb));
@@ -41,6 +54,7 @@ section {
   cursor: pointer;
   transition: background 0.2s, opacity 0.2s;
 }
+.stab-btn svg { flex-shrink: 0; }
 .stab-btn:hover { background: rgb(var(--accent-rgb) / 0.12); opacity: 0.9; }
 .stab-btn.active {
   background: rgb(var(--accent-rgb) / 0.18);
@@ -49,7 +63,15 @@ section {
 }
 
 .stab-panel { display: none; }
-.stab-panel.active { display: block; }
+.stab-panel.active {
+  display: block;
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding-bottom: 18px;
+}
+.stab-panel.active::-webkit-scrollbar { width: 6px; }
+.stab-panel.active::-webkit-scrollbar-thumb { background: rgb(var(--accent-rgb) / 0.25); border-radius: 4px; }
 
 /* ─────────────────────────  Aba de aniversariantes  ──────────────────────── */
 #bday-new-container { margin-bottom: 14px; }
@@ -224,6 +246,49 @@ h2 {
   50% { opacity: 0.5; }
 }
 
+/* ──────────────────────────────  Google Agenda  ──────────────────────────── */
+#google-status-text {
+  font-size: 0.88em;
+  opacity: 0.85;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+#google-sync-btn {
+  width: 100%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 7px 0;
+  background: rgb(var(--bg-rgb) / 0.5);
+  color: rgb(var(--accent-rgb));
+  border: none;
+  border-radius: 7px;
+  font-family: inherit;
+  font-size: 0.95em;
+  cursor: pointer;
+  transition: background 0.2s;
+  margin-bottom: 8px;
+}
+#google-sync-btn:hover { background: rgb(var(--accent-rgb) / 0.14); }
+#google-sync-btn:disabled { opacity: 0.5; cursor: default; }
+
+#google-sync-hint { margin-top: 0; }
+
+.hidden { display: none; }
+
+/* ────────────────────────────────  Footer  ──────────────────────────────── */
+#app-footer {
+  margin-top: 4px;
+  padding-top: 12px;
+  border-top: 1px solid rgb(var(--panel-text-rgb) / 0.1);
+  font-size: 0.75em;
+  opacity: 0.5;
+  text-align: center;
+}
+
 .hint {
   font-size: 0.78em;
   opacity: 0.6;
@@ -299,6 +364,9 @@ h2 {
 .alarm-sound-row.selected { border-color: rgb(var(--accent-rgb)); background: rgb(var(--accent-rgb) / 0.16); }
 
 .alarm-sound-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
   font-size: 0.88em;
   color: rgb(var(--panel-text-rgb));
 }
@@ -306,12 +374,14 @@ h2 {
 .alarm-sound-preview {
   width: 26px;
   height: 26px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   border-radius: 50%;
   border: none;
   background: rgb(var(--accent-rgb) / 0.18);
   color: rgb(var(--accent-rgb));
   cursor: pointer;
-  font-size: 0.8em;
   flex-shrink: 0;
 }
 .alarm-sound-preview:hover { background: rgb(var(--accent-rgb) / 0.3); }

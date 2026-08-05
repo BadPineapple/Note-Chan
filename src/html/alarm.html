@@ -15,15 +15,17 @@
 </head>
 <body>
   <div id="alarm-container">
-    <div class="alarm-icon">⏰</div>
+    <div id="alarm-sprite"></div>
+    <div id="alarm-intro">Ei, olha isso:</div>
     <div id="alarm-title">Evento</div>
     <div id="alarm-time"></div>
     <div class="alarm-actions">
-      <button id="alarm-snooze-btn">😴 Remarcar</button>
-      <button id="alarm-stop-btn">✅ Parar</button>
+      <button id="alarm-snooze-btn"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.985 12.486a9 9 0 1 1-9.473-9.472c.405-.022.617.46.402.803a6 6 0 0 0 8.268 8.268c.344-.215.825-.004.803.401"/></svg> Remarcar</button>
+      <button id="alarm-stop-btn"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg> Parar</button>
     </div>
   </div>
 
+  <script src="../js/TamaSprite.js"></script>
   <script src="../js/AlarmSounds.js"></script>
   <script src="../js/Alarm.js"></script>
 </body>

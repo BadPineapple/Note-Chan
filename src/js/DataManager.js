@@ -15,6 +15,22 @@ function defaultData() {
         events: [],
         birthdays: [],
         tags: [],
+        googleSync: {
+            syncToken: null,       // syncToken incremental da Calendar API (null = próxima sync é completa)
+            lastSyncAt: null,
+            pendingDeletes: []     // ids de evento do Google a excluir na próxima sync (ver Main.js)
+        },
+        tamagotchi: {
+            level: 1,
+            xp: 0,
+            vida: 100,
+            fome: 100,
+            carencia: 100,
+            higiene: 100,
+            lastUpdate: Date.now(),      // referência do decaimento de fome/higiene (tempo puro)
+            lastInteraction: Date.now(), // referência do decaimento de carência (uso do app)
+            lastLowNotified: {}          // { fome, higiene, carencia, vida } -> timestamp do último aviso (main)
+        },
         widget: { collapsed: true, width: 320, height: 480, activeTab: "notas" },
         settings: {
             theme: "gold",
@@ -45,6 +61,8 @@ function loadData() {
             ...defaults,
             ...parsed,
             widget: { ...defaults.widget, ...parsed.widget },
+            tamagotchi: { ...defaults.tamagotchi, ...parsed.tamagotchi },
+            googleSync: { ...defaults.googleSync, ...parsed.googleSync },
             settings: {
                 ...defaults.settings,
                 ...parsed.settings,

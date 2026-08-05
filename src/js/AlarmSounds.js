@@ -12,25 +12,25 @@
 (function () {
     const SOUNDS = {
         sininho: {
-            label: "🔔 Sininho",
+            label: "Sininho",
             notes: [[880, 140, 60], [988, 140, 60], [1175, 320, 500]]
         },
         caixinha: {
-            label: "🎵 Caixinha de música",
+            label: "Caixinha de música",
             notes: [
                 [523, 180, 20], [659, 180, 20], [784, 180, 20],
                 [659, 180, 20], [523, 180, 20], [784, 360, 500]
             ]
         },
         passarinho: {
-            label: "🐣 Passarinho",
+            label: "Passarinho",
             notes: [
                 [1568, 70, 30], [1760, 70, 30], [1976, 90, 120],
                 [1760, 70, 30], [1568, 70, 400]
             ]
         },
         classico: {
-            label: "⏰ Clássico suave",
+            label: "Clássico suave",
             notes: [[700, 160, 120], [700, 160, 500]]
         }
     };
