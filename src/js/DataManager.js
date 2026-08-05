@@ -141,7 +141,7 @@ function dailyBackupIfNeeded(data) {
     }
 }
 
-async function saveData(data) {
+async function writeAsync(data) {
     try {
         backupPrevious();
         await fs.promises.writeFile(`${PATHS.data}.tmp`, JSON.stringify(data, null, 2), "utf8");
@@ -151,6 +151,18 @@ async function saveData(data) {
     } catch (e) {
         warn("[DATA] Falha ao salvar data.json:", e.message);
     }
+}
+
+// Duas gravações sobrepostas disputariam o MESMO data.json.tmp (uma renomeia
+// o arquivo que a outra ainda está escrevendo). O debounce do Main.js cobre
+// rajadas curtas, não uma gravação lenta que ainda não terminou — então a
+// fila aqui é a garantia de verdade. writeAsync nunca rejeita, então a
+// corrente não quebra numa falha isolada.
+let writeQueue = Promise.resolve();
+
+function saveData(data) {
+    writeQueue = writeQueue.then(() => writeAsync(data));
+    return writeQueue;
 }
 
 function saveDataSync(data) {

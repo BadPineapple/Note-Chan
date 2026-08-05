@@ -222,38 +222,10 @@ const bdayNewBtn = document.getElementById("bday-new-btn");
 const BIRTHDAY_CATEGORY_LABELS = { "": "Sem categoria", familia: "Família", amigo: "Amigo", trabalho: "Trabalho" };
 const BIRTHDAY_CATEGORY_ICONS = { familia: "users", amigo: "user", trabalho: "briefcase" };
 
-function newId() { return crypto.randomUUID(); }
+// Compartilhadas com o widget — ver UiUtils.js.
+const { newId, escapeHtml, formatBR, armDeleteConfirm } = UiUtils;
+
 function now() { return Date.now(); }
-
-// Escapa aspas também -- o resultado é interpolado dentro de atributos
-// (value="${...}"), onde uma aspa fecharia o atributo. Mesmo motivo do
-// escapeHtml do Widget.js, ver comentário lá.
-function escapeHtml(str) {
-    const div = document.createElement("div");
-    div.textContent = str ?? "";
-    return div.innerHTML.replace(/"/g, "&quot;").replace(/'/g, "&#39;");
-}
-
-function formatBR(iso) {
-    const [, m, d] = iso.split("-");
-    return `${d}/${m}`;
-}
-
-// Sem window.confirm() aqui também, por consistência com o widget (ver
-// Widget.js) — dois cliques no próprio botão em vez de diálogo bloqueante.
-function armDeleteConfirm(btn, onConfirm) {
-    if (btn.classList.contains("confirm-armed")) {
-        clearTimeout(btn._armTimer);
-        onConfirm();
-        return;
-    }
-    btn.classList.add("confirm-armed");
-    btn.textContent = "?";
-    btn._armTimer = setTimeout(() => {
-        btn.classList.remove("confirm-armed");
-        btn.innerHTML = Icons.svg("x", 12);
-    }, 2500);
-}
 
 function birthdayBadge(dateStr) {
     const occ = EventUtils.nextBirthdayOccurrence(dateStr);

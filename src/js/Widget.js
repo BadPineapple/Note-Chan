@@ -74,9 +74,8 @@ function scheduleSave() {
 
 /* ═══════════════════════════════  UTILIDADES  ═══════════════════════════ */
 
-function newId() {
-    return crypto.randomUUID();
-}
+// Compartilhadas com a janela de Configurações — ver UiUtils.js.
+const { newId, escapeHtml, formatBR, armDeleteConfirm } = UiUtils;
 
 function now() {
     return Date.now();
@@ -87,37 +86,6 @@ function formatDate(ts) {
     return new Date(ts).toLocaleString("pt-BR", {
         day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit"
     });
-}
-
-// textContent -> innerHTML escapa & < >, mas NÃO aspas -- e vários pontos
-// daqui interpolam o resultado DENTRO de um atributo (value="${...}"), onde
-// uma aspa fecharia o atributo e injetaria markup. Não é hipotético: o link
-// de um evento pode vir da description de um convite recebido no Google
-// Agenda, ou seja, texto de terceiro.
-function escapeHtml(str) {
-    const div = document.createElement("div");
-    div.textContent = str ?? "";
-    return div.innerHTML.replace(/"/g, "&quot;").replace(/'/g, "&#39;");
-}
-
-// window.confirm() é um diálogo NATIVO e bloqueante — nesta janela
-// (alwaysOnTop no nível "screen-saver", o mais alto do Windows) ele abre
-// escondido atrás do próprio widget, mas ainda assim trava a thread de JS
-// esperando resposta. Resultado: tudo parece travado até o usuário mexer
-// em outra janela por acaso. Por isso exclusão é confirmada com dois
-// cliques no próprio botão, sem diálogo nenhum.
-function armDeleteConfirm(btn, onConfirm) {
-    if (btn.classList.contains("confirm-armed")) {
-        clearTimeout(btn._armTimer);
-        onConfirm();
-        return;
-    }
-    btn.classList.add("confirm-armed");
-    btn.textContent = "?";
-    btn._armTimer = setTimeout(() => {
-        btn.classList.remove("confirm-armed");
-        btn.innerHTML = Icons.svg("x", 12);
-    }, 2500);
 }
 
 /* ═══════════════════════════════════  TAGS  ══════════════════════════════ */
@@ -142,10 +110,12 @@ function refreshCardTagsHeader(card, item) {
     if (slot) slot.innerHTML = cardTagsInnerHtml(item.tagIds);
 }
 
-function renderTagPicker(container, item) {
-    container.innerHTML = "";
+// pickerEl, não "container": o #container do widget é uma global deste
+// arquivo e sombrear o nome aqui dentro é pedir confusão.
+function renderTagPicker(pickerEl, item) {
+    pickerEl.innerHTML = "";
     if (data.tags.length === 0) {
-        container.innerHTML = `<span class="tag-picker-hint">Crie tags em Configurações → Tags</span>`;
+        pickerEl.innerHTML = `<span class="tag-picker-hint">Crie tags em Configurações → Tags</span>`;
         return;
     }
     item.tagIds = item.tagIds || [];
@@ -163,10 +133,10 @@ function renderTagPicker(container, item) {
                 : [...item.tagIds, tag.id];
             item.updatedAt = now();
             scheduleSave();
-            renderTagPicker(container, item);
-            refreshCardTagsHeader(container.closest(".card"), item);
+            renderTagPicker(pickerEl, item);
+            refreshCardTagsHeader(pickerEl.closest(".card"), item);
         });
-        container.appendChild(btn);
+        pickerEl.appendChild(btn);
     });
 }
 
@@ -178,11 +148,6 @@ const RECURRENCE_LABELS = {
     monthly: `${RECURRENCE_ICON} Mensal`,
     yearly: `${RECURRENCE_ICON} Anual`
 };
-
-function formatBR(iso) {
-    const [, m, d] = iso.split("-");
-    return `${d}/${m}`;
-}
 
 // { text, cls } prontos pra virar um .event-badge
 function occurrenceBadge(occDate) {
@@ -1078,9 +1043,9 @@ function listItemNode(list, item, refreshPreview, insertItemAfter) {
         list.updatedAt = now();
         scheduleSave();
 
-        const container = li.parentElement;
-        container.innerHTML = "";
-        list.items.forEach(it => container.appendChild(listItemNode(list, it, refreshPreview, insertItemAfter)));
+        const listEl = li.parentElement;
+        listEl.innerHTML = "";
+        list.items.forEach(it => listEl.appendChild(listItemNode(list, it, refreshPreview, insertItemAfter)));
     });
 
     li.querySelector('input[type="checkbox"]').addEventListener("change", (e) => {
@@ -1797,7 +1762,12 @@ panel.addEventListener("dragenter", (e) => {
 panel.addEventListener("dragover", (e) => {
     if (hasFiles(e)) e.preventDefault();
 });
-panel.addEventListener("dragleave", () => {
+// Só conta saída de arraste de ARQUIVO: arrastar um card ou item de lista
+// dentro do painel também dispara dragleave, e sem essa checagem o contador
+// da moldura de "solte aqui" mexeria por causa de um gesto que não tem nada
+// a ver com arquivo.
+panel.addEventListener("dragleave", (e) => {
+    if (!hasFiles(e)) return;
     dragEnterDepth = Math.max(0, dragEnterDepth - 1);
     if (dragEnterDepth === 0) container.classList.remove("file-drop-active");
 });

@@ -46,7 +46,7 @@ Três abas, cada uma com seus próprios cards, arrastáveis para reordenar:
 
 - **Notas** — texto livre, com prévia recolhida e editor expandido.
 - **Listas** — itens com checkbox, reordenáveis, "Enter" continua a lista igual Notion/Todoist.
-- **Eventos** — data, recorrência (diária/semanal/mensal/anual), horário de início/fim opcional, link, checklist próprio, e alarme sonoro que toca na hora marcada (sintetizado via Web Audio, sem depender de arquivo de áudio externo). Eventos sem horário avisam quando o widget é aberto no dia marcado, em vez de tocar o alarme.
+- **Eventos** — data, recorrência (diária/semanal/mensal/anual), horário de início/fim opcional, link, checklist próprio, e alarme sonoro que toca na hora marcada (sintetizado via Web Audio, sem depender de arquivo de áudio externo). Eventos sem horário avisam quando o widget é aberto no dia marcado, em vez de tocar o alarme. Evento recorrente avança sozinho para a próxima ocorrência quando a data passa — marcar como concluído é um registro, não um pré-requisito. Já o evento único atrasado continua aparecendo como atrasado, que é justamente o que precisa chamar atenção.
 
 Cada nota/lista/evento pode receber **tags** coloridas (gerenciadas em Configurações, com rolagem horizontal quando há muitas), exibidas como pills no card.
 
@@ -120,11 +120,12 @@ Logs de execução ficam em `logs/runtime.log` (rotacionado a cada 2 MB), úteis
 
 Recurso opcional e de mão dupla: eventos e aniversariantes criados no Note-Chan vão pro seu **calendário principal** do Google, e o que você cria direto no Google Agenda aparece no Note-Chan.
 
-- **Direção do conflito**: se o mesmo evento mudar dos dois lados, o Google sempre vence.
+- **Direção do conflito**: cada sincronização primeiro envia o que você editou aqui e só depois lê o que está lá — então uma edição local chega ao Google, mas se o mesmo evento mudou dos dois lados desde a última sincronização, o Google vence.
+- **Eventos que já existiam na sua agenda**: quando você edita aqui um evento que não foi criado pelo Note-Chan, só título, data e horário sobem. Recorrência e descrição ficam intactas do lado do Google — o modelo de recorrência daqui é mais simples que o de lá, e reenviá-lo trocaria um "toda segunda e quarta até dezembro" por um "toda semana".
 - **Recorrência**: sincroniza como evento recorrente de verdade no Google (RRULE); "marcar como concluído" continua sendo só uma informação do Note-Chan — o Google não tem esse conceito.
 - **Como identifica o que é seu**: cada evento/aniversariante criado pelo app carrega uma marcação invisível (`extendedProperties`) no lado do Google, pra atualizar/excluir só o que é dele sem tocar nos seus outros compromissos.
 - **Aniversariantes**: só sincronizam de forma confiável num sentido (Note-Chan → Google, como evento anual). Um evento anual recorrente criado direto no Google **não** vira aniversariante aqui — entra como evento comum, pra não arriscar categorizar errado.
-- **Quando roda**: automaticamente ao abrir o widget (sair do modo bandeja) e sob demanda pelo botão "Sincronizar agora" em Configurações → Geral. Não fica checando sozinho em segundo plano.
+- **Quando roda**: ao abrir o widget (sair do modo bandeja), a cada 15 minutos com o app rodando, e sob demanda pelo botão "Sincronizar agora" em Configurações → Geral. Uma sincronização por vez — pedidos que chegam durante outra em andamento aproveitam a mesma.
 
 ### Configurando pela primeira vez
 
@@ -165,7 +166,7 @@ Toda a interface usa SVG do conjunto [Lucide](https://lucide.dev/) (ISC license)
 - **Processo principal** (`src/js/Main.js`) — dono das janelas, da bandeja do sistema, dos atalhos globais, do alarme e notificações, da sincronização com o Google (`GoogleAuth.js` + `GoogleCalendarSync.js`) e da persistência (`DataManager.js`). Nenhuma janela do renderer tem acesso a Node.js (`nodeIntegration: false`, `contextIsolation: true`, `sandbox: true`).
 - **Renderer** (`src/js/preload.js` + `Widget.js`, `Settings.js`, `QuickCapture.js`, `Alarm.js`) — cada janela HTML fala com o processo principal só através de um `window.api` restrito, exposto via `contextBridge` com uma lista fechada de canais IPC permitidos.
 - **Janelas**: widget (notas/listas/eventos/bichinho), Configurações, captura rápida e o popup de alarme — cada uma é um `BrowserWindow` isolado.
-- **Módulos compartilhados** (UMD, `require()` no main e `<script>` global no renderer): `EventUtils.js` (datas/recorrência), `TagUtils.js` (paleta de tags), `TamaSprite.js` (desenho do bichinho em SVG por fórmula) e `Icons.js` (ícones da UI).
+- **Módulos compartilhados** (UMD, `require()` no main e `<script>` global no renderer): `EventUtils.js` (datas/recorrência), `TagUtils.js` (paleta de tags), `TamaSprite.js` (desenho do bichinho em SVG por fórmula), `Icons.js` (ícones da UI) e `UiUtils.js` (escape de HTML, confirmação de exclusão em dois toques e afins, usados igual pelo widget e por Configurações).
 
 ## Stack
 

@@ -1,6 +1,6 @@
 {
   "name": "note-chan",
-  "version": "1.0.0",
+  "version": "1.2.0",
   "description": "Widget de notas, listas e eventos que fica ancorado na tela — tudo local, sem depender de internet.",
   "main": "src/js/Main.js",
   "author": "Renato",
