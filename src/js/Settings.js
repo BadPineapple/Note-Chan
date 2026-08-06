@@ -309,7 +309,8 @@ function birthdayCardNode(birthday) {
     }
     refreshPreview();
 
-    card.querySelector(".card-header").addEventListener("click", () => {
+    card.querySelector(".card-header").addEventListener("click", (e) => {
+        if (e.detail > 1) return; // 2º clique do duplo-clique — quem trata é o dblclick
         card.classList.toggle("expanded");
         if (card.classList.contains("expanded")) bdayExpanded.add(birthday.id);
         else bdayExpanded.delete(birthday.id);
@@ -318,6 +319,12 @@ function birthdayCardNode(birthday) {
     const title = card.querySelector(".card-title");
     title.addEventListener("dblclick", (e) => {
         e.stopPropagation();
+        // O 1º clique do duplo-clique pode ter recolhido o card. Reabre antes
+        // de editar: quem dá dois cliques no nome quer renomear, não fechar.
+        if (!card.classList.contains("expanded")) {
+            card.classList.add("expanded");
+            bdayExpanded.add(birthday.id);
+        }
         title.contentEditable = "true";
         title.focus();
         document.execCommand("selectAll", false, null);

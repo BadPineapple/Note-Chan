@@ -851,6 +851,100 @@ function attachCardDrag(card, id, itemsArray) {
     });
 }
 
+/* ═════════════  CABEÇALHO DO CARD: ABRIR, FECHAR E RENOMEAR  ══════════════ */
+
+// Onde o último clique COMEÇOU. O focusout dispara no mousedown, antes do
+// evento de click, e nesse intervalo document.activeElement já é o <body> --
+// ou seja, "o foco saiu do card" parecia verdade mesmo com o usuário
+// clicando dentro do próprio card. O card recolhia no mousedown e o click
+// seguinte, vendo o card já fechado, reabria: era o "clico pra fechar e ele
+// abre sozinho". Só notas e listas sofriam, porque só elas põem foco num
+// campo ao expandir (evento não foca nada, por isso passava ileso).
+//
+// A janela de 700 ms existe porque nada "limpa" esse registro: um clique
+// fora do card gera um pointerdown novo (o caso comum), mas sair do card só
+// com Tab não gera nenhum -- aí o registro velho não pode continuar valendo.
+const POINTER_RECENT_MS = 700;
+let lastPointerDown = { target: null, at: 0 };
+
+document.addEventListener("pointerdown", (e) => {
+    lastPointerDown = { target: e.target, at: Date.now() };
+}, true);
+
+function clickStartedInside(el) {
+    if (!lastPointerDown.target) return false;
+    if (Date.now() - lastPointerDown.at > POINTER_RECENT_MS) return false;
+    return el.contains(lastPointerDown.target);
+}
+
+// Clique simples alterna expandido/recolhido; duplo clique no título
+// renomeia. Os dois gestos disputam o mesmo alvo, então recolher A PARTIR DO
+// TÍTULO espera a janela do duplo clique antes de valer. Sem essa espera o
+// 1º clique fecha o card e o duplo clique nunca chega a entrar em edição --
+// e numa nota/lista recém-criada ela ainda sumia no caminho, porque card sem
+// conteúdo é descartado ao ser recolhido. Clique no resto do cabeçalho
+// (espaço vazio, área das tags) continua recolhendo na hora.
+const DBLCLICK_GRACE_MS = 220;
+
+// expand(focusField): abre o card; focusField=false quando a abertura é só
+// pra renomear, pra não roubar o foco do título. collapse(): fecha.
+// Devolve { beginTitleEdit } pra quem precisa entrar em edição por outro
+// caminho (o Enter que navega entre os campos do evento, por exemplo).
+function attachHeaderToggle(card, title, expand, collapse) {
+    let pendingCollapse = null;
+
+    function cancelPendingCollapse() {
+        if (pendingCollapse === null) return;
+        clearTimeout(pendingCollapse);
+        pendingCollapse = null;
+    }
+
+    function beginTitleEdit() {
+        cancelPendingCollapse();
+        if (!card.classList.contains("expanded")) expand(false);
+        title.contentEditable = "true";
+        title.focus();
+        document.execCommand("selectAll", false, null);
+    }
+
+    card.querySelector(".card-header").addEventListener("click", (e) => {
+        if (e.detail > 1) return; // 2º clique do duplo-clique — quem trata é o dblclick
+        if (!card.classList.contains("expanded")) { expand(true); return; }
+        if (title.contains(e.target)) {
+            cancelPendingCollapse();
+            pendingCollapse = setTimeout(() => {
+                pendingCollapse = null;
+                collapse();
+            }, DBLCLICK_GRACE_MS);
+        } else {
+            collapse();
+        }
+    });
+
+    // Foco saiu de todos os campos do card (clicou fora, deu Tab pra fora,
+    // etc.) -> recolhe sozinho. O setTimeout espera o próximo tick porque
+    // focusout dispara ANTES do novo elemento realmente ganhar o foco —
+    // checar document.activeElement direto seria sempre o elemento antigo.
+    card.addEventListener("focusout", () => {
+        setTimeout(() => {
+            if (card.contains(document.activeElement)) return;
+            if (clickStartedInside(card)) return; // ver lastPointerDown acima
+            cancelPendingCollapse();
+            collapse();
+        }, 0);
+    });
+
+    title.addEventListener("dblclick", (e) => {
+        e.stopPropagation();
+        beginTitleEdit();
+    });
+
+    // Já editando: o clique só posiciona o cursor, não alterna o card.
+    title.addEventListener("click", (e) => { if (title.isContentEditable) e.stopPropagation(); });
+
+    return { beginTitleEdit };
+}
+
 /* ═══════════════════════════════  NOTAS  ═════════════════════════════════ */
 
 function noteCardNode(note) {
@@ -874,6 +968,14 @@ function noteCardNode(note) {
 
     renderTagPicker(card.querySelector(".tag-picker"), note);
 
+    const title = card.querySelector(".card-title");
+
+    function expandNote(focusEditor) {
+        card.classList.add("expanded");
+        expanded.add(note.id);
+        if (focusEditor) card.querySelector(".note-editor")?.focus();
+    }
+
     function collapseNote() {
         if (!card.classList.contains("expanded")) return;
         card.classList.remove("expanded");
@@ -896,32 +998,7 @@ function noteCardNode(note) {
         }
     }
 
-    card.querySelector(".card-header").addEventListener("click", (e) => {
-        // 2º clique de um duplo-clique no título (que edita o título, ver
-        // abaixo) não deve alternar expandido/recolhido de novo -- senão o
-        // 1º clique fecha, o 2º reabre, e o dblclick some no meio do caminho.
-        if (e.detail > 1) return;
-        if (card.classList.contains("expanded")) {
-            collapseNote();
-        } else {
-            card.classList.add("expanded");
-            expanded.add(note.id);
-            card.querySelector(".note-editor")?.focus();
-        }
-    });
-
-    // Sai o foco de todos os campos do card (clicou fora, deu Tab pra fora,
-    // etc.) -> recolhe sozinho. O setTimeout espera o próximo tick porque
-    // focusout dispara ANTES do novo elemento realmente ganhar o foco —
-    // checar document.activeElement direto seria sempre o elemento antigo.
-    card.addEventListener("focusout", () => {
-        setTimeout(() => {
-            if (card.contains(document.activeElement)) return;
-            collapseNote();
-        }, 0);
-    });
-
-    const title = card.querySelector(".card-title");
+    attachHeaderToggle(card, title, expandNote, collapseNote);
 
     // Sai do modo de edição do título e salva o nome -- chamado pelo blur
     // real (usuário clicou fora) OU direto pelo collapseNote() (ver acima),
@@ -934,19 +1011,6 @@ function noteCardNode(note) {
         scheduleSave();
     }
 
-    title.addEventListener("dblclick", (e) => {
-        e.stopPropagation();
-        // O 1º clique do duplo-clique já alternou expandido/recolhido (ver
-        // handler de .card-header, guardado por e.detail>1 pro 2º clique não
-        // alternar de novo). Se esse 1º clique FECHOU o card, o dblclick não
-        // deve entrar em edição -- senão o título fica "selecionado" piscando
-        // no cabeçalho de um card recolhido, parecendo que reabriu sozinho.
-        if (!card.classList.contains("expanded")) return;
-        title.contentEditable = "true";
-        title.focus();
-        document.execCommand("selectAll", false, null);
-    });
-    title.addEventListener("click", (e) => { if (title.isContentEditable) e.stopPropagation(); });
     title.addEventListener("blur", commitTitle);
     title.addEventListener("keydown", (e) => {
         if (e.key !== "Enter") return;
@@ -1150,6 +1214,14 @@ function listCardNode(list) {
     const itemList = card.querySelector(".item-list");
     list.items.forEach(item => itemList.appendChild(listItemNode(list, item, refreshPreview, insertItemAfter)));
 
+    const title = card.querySelector(".card-title");
+
+    function expandList(focusAddInput) {
+        card.classList.add("expanded");
+        expanded.add(list.id);
+        if (focusAddInput) card.querySelector(".item-add")?.focus();
+    }
+
     function collapseList() {
         if (!card.classList.contains("expanded")) return;
         card.classList.remove("expanded");
@@ -1164,25 +1236,7 @@ function listCardNode(list) {
         }
     }
 
-    card.querySelector(".card-header").addEventListener("click", (e) => {
-        if (e.detail > 1) return;
-        if (card.classList.contains("expanded")) {
-            collapseList();
-        } else {
-            card.classList.add("expanded");
-            expanded.add(list.id);
-            card.querySelector(".item-add")?.focus();
-        }
-    });
-
-    card.addEventListener("focusout", () => {
-        setTimeout(() => {
-            if (card.contains(document.activeElement)) return;
-            collapseList();
-        }, 0);
-    });
-
-    const title = card.querySelector(".card-title");
+    attachHeaderToggle(card, title, expandList, collapseList);
 
     function commitTitle() {
         title.contentEditable = "false";
@@ -1192,19 +1246,6 @@ function listCardNode(list) {
         scheduleSave();
     }
 
-    title.addEventListener("dblclick", (e) => {
-        e.stopPropagation();
-        // O 1º clique do duplo-clique já alternou expandido/recolhido (ver
-        // handler de .card-header, guardado por e.detail>1 pro 2º clique não
-        // alternar de novo). Se esse 1º clique FECHOU o card, o dblclick não
-        // deve entrar em edição -- senão o título fica "selecionado" piscando
-        // no cabeçalho de um card recolhido, parecendo que reabriu sozinho.
-        if (!card.classList.contains("expanded")) return;
-        title.contentEditable = "true";
-        title.focus();
-        document.execCommand("selectAll", false, null);
-    });
-    title.addEventListener("click", (e) => { if (title.isContentEditable) e.stopPropagation(); });
     title.addEventListener("blur", commitTitle);
     title.addEventListener("keydown", (e) => {
         if (e.key !== "Enter") return;
@@ -1359,6 +1400,15 @@ function eventCardNode(event) {
         scheduleSave();
     });
 
+    const title = card.querySelector(".card-title");
+
+    // Evento não põe foco em campo nenhum ao expandir (diferente de nota e
+    // lista) — os campos ficam todos visíveis, não faz sentido roubar o foco.
+    function expandEvent() {
+        card.classList.add("expanded");
+        expanded.add(event.id);
+    }
+
     function collapseEvent() {
         if (!card.classList.contains("expanded")) return;
         card.classList.remove("expanded");
@@ -1370,20 +1420,7 @@ function eventCardNode(event) {
         if (title.isContentEditable) commitTitle();
     }
 
-    card.querySelector(".card-header").addEventListener("click", (e) => {
-        if (e.detail > 1) return;
-        if (card.classList.contains("expanded")) collapseEvent();
-        else { card.classList.add("expanded"); expanded.add(event.id); }
-    });
-
-    card.addEventListener("focusout", () => {
-        setTimeout(() => {
-            if (card.contains(document.activeElement)) return;
-            collapseEvent();
-        }, 0);
-    });
-
-    const title = card.querySelector(".card-title");
+    const cardHeader = attachHeaderToggle(card, title, expandEvent, collapseEvent);
 
     function commitTitle() {
         title.contentEditable = "false";
@@ -1393,19 +1430,6 @@ function eventCardNode(event) {
         scheduleSave();
     }
 
-    title.addEventListener("dblclick", (e) => {
-        e.stopPropagation();
-        // O 1º clique do duplo-clique já alternou expandido/recolhido (ver
-        // handler de .card-header, guardado por e.detail>1 pro 2º clique não
-        // alternar de novo). Se esse 1º clique FECHOU o card, o dblclick não
-        // deve entrar em edição -- senão o título fica "selecionado" piscando
-        // no cabeçalho de um card recolhido, parecendo que reabriu sozinho.
-        if (!card.classList.contains("expanded")) return;
-        title.contentEditable = "true";
-        title.focus();
-        document.execCommand("selectAll", false, null);
-    });
-    title.addEventListener("click", (e) => { if (title.isContentEditable) e.stopPropagation(); });
     title.addEventListener("blur", commitTitle);
     const dateEl       = card.querySelector(".ev-date");
     const recurrenceEl = card.querySelector(".ev-recurrence");
@@ -1419,12 +1443,12 @@ function eventCardNode(event) {
 
     // O título só é focável de verdade quando contentEditable="true" (span
     // comum não recebe foco por padrão) — fora do duplo clique, isso só
-    // acontece aqui, ao entrar nele via Enter/Tab.
+    // acontece aqui, ao entrar nele via Enter/Tab. Reaproveita o mesmo
+    // caminho do duplo clique (ver attachHeaderToggle) pra não duplicar a
+    // entrada em modo de edição.
     function focusField(field) {
         if (field === title) {
-            title.contentEditable = "true";
-            title.focus();
-            document.execCommand("selectAll", false, null);
+            cardHeader.beginTitleEdit();
         } else {
             field.focus();
             if (typeof field.select === "function") field.select();
