@@ -34,7 +34,8 @@ Feito com [Electron](https://www.electronjs.org/) puro (sem framework de UI) par
 
 Um mascote em pixel art com 4 status: vida, fome, carência e higiene.
 
-- Fome e higiene decaem com o tempo (higiene bem mais devagar); carência decai só com a falta de interação (abrir o app, dar carinho, brincar); vida se recupera sozinha quando os outros três estão em dia.
+- Fome zera em 24h, carência em 30h e higiene em 60h — e o relógio só corre com o **computador ligado e o app rodando**: tempo com o app fechado, com a máquina dormindo ou hibernando não conta. Voltar de um fim de semana não encontra o bichinho faminto, ele fica como foi deixado.
+- Carência é a única que a interação segura (abrir o app, dar carinho, brincar); vida se recupera sozinha quando os outros três estão em dia.
 - Completar tarefas e eventos nas outras abas recupera fome automaticamente — comida na aba dele é só um bônus manual.
 - Três abas de interação: Comida, Brinquedos e Higiene, cada ação com um ganho de status diferente.
 - Ganha XP e sobe de nível com o tempo de cuidado.

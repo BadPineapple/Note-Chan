@@ -473,13 +473,22 @@ const TAMA_XP_PER_LEVEL = 100;
 // bichinho), não com o relógio puro; vida não decai sozinha, só sofre se as
 // outras 3 ficarem ruins por muito tempo (ver applyTamaDecay), e se recupera
 // sozinha quando elas voltam ao normal.
-const TAMA_FOME_MIN_TO_ZERO = 8 * 60;      // ~8h sem comer
-const TAMA_HIGIENE_MIN_TO_ZERO = 20 * 60;  // bem mais devagar que fome
-const TAMA_CARENCIA_MIN_TO_ZERO = 10 * 60; // ~10h sem interação nenhuma
+// Os três contam SÓ tempo de PC ligado com o app rodando (ver o salto grande
+// tratado em applyTamaDecay), então são horas de uso real, não de calendário.
+const TAMA_FOME_MIN_TO_ZERO = 24 * 60;     // 24h de uso sem comer
+const TAMA_HIGIENE_MIN_TO_ZERO = 60 * 60;  // 60h -- sempre foi a mais lenta das três
+const TAMA_CARENCIA_MIN_TO_ZERO = 30 * 60; // 30h sem interação nenhuma
 const TAMA_NEGLECT_THRESHOLD = 25;         // abaixo disso conta como "negligenciado"
 const TAMA_NORMAL_THRESHOLD = 50;          // acima disso conta como "normal" pra vida regenerar
 const TAMA_PET_COOLDOWN_MS = 3000;         // evita fazer carinho em rajada pra inflar carência
 const TAMA_LIVE_TICK_MS = 3 * 60 * 1000;   // recalcula decaimento periodicamente mesmo com o painel fechado
+
+// Salto maior que isso desde a última passada não é tempo de uso: é app
+// fechado, máquina dormindo/hibernando ou processo congelado pelo sistema.
+// Generoso de propósito (5x o tick) -- errar pra mais só faz contar alguns
+// minutos de sono como uso, o que é irrisório perto de 24h; errar pra menos
+// travaria o decaimento de vez, e aí o bichinho nunca sentiria fome.
+const TAMA_MAX_GAP_MS = 5 * TAMA_LIVE_TICK_MS;
 
 // Desenho do personagem (grid de pixels -> SVG) mora em TamaSprite.js,
 // compartilhado com o popup de alarme -- ver esse arquivo.
@@ -495,6 +504,21 @@ const tamaClamp = TamaSprite.clamp;
 function applyTamaDecay() {
     const tama = data.tamagotchi;
     const now = Date.now();
+
+    // Só conta o tempo em que o computador esteve de fato ligado com o app
+    // rodando: um buraco grande desde a última passada significa app fechado,
+    // PC dormindo ou processo congelado. Nesse caso reancora os relógios sem
+    // descontar nada -- voltar de um fim de semana não encontra o bichinho
+    // faminto, ele fica exatamente como foi deixado.
+    const gapMs = Math.max(
+        now - (tama.lastUpdate || now),
+        now - (tama.lastCarenciaUpdate || tama.lastInteraction || now)
+    );
+    if (gapMs > TAMA_MAX_GAP_MS) {
+        tama.lastUpdate = now;
+        tama.lastCarenciaUpdate = now;
+        return;
+    }
 
     const elapsedMin = (now - (tama.lastUpdate || now)) / 60000;
     if (elapsedMin > 0) {
