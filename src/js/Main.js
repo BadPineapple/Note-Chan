@@ -146,7 +146,12 @@ function mergeMainOwnedList(existingList, incoming, ownedFields) {
 
 ipcMain.on("save-data", (event, payload) => {
     if (!payload) return;
-    data.notes = Array.isArray(payload.notes) ? payload.notes : data.notes;
+    if (Array.isArray(payload.notes)) {
+        data.notes = payload.notes;
+        // A mesma nota pode estar aberta em janela própria — leva a edição
+        // do widget pra lá (e fecha a janela se a nota foi excluída aqui).
+        syncNoteWindows();
+    }
     data.lists = Array.isArray(payload.lists) ? payload.lists : data.lists;
     if (Array.isArray(payload.birthdays)) {
         data.birthdays = mergeMainOwnedList(data.birthdays, payload.birthdays, ["googleEventId", "googleSyncedAt"]);
@@ -193,9 +198,8 @@ ipcMain.on("save-data", (event, payload) => {
 ipcMain.on("save-settings", (event, settings) => {
     if (!settings) return;
     const shortcutsChanged =
-        settings.shortcuts && (
-            settings.shortcuts.toggleWidget !== data.settings.shortcuts.toggleWidget ||
-            settings.shortcuts.quickCapture !== data.settings.shortcuts.quickCapture
+        settings.shortcuts && Object.keys(settings.shortcuts).some(
+            key => settings.shortcuts[key] !== data.settings.shortcuts[key]
         );
 
     data.settings = {
@@ -397,7 +401,7 @@ function quickCreate(type) {
 /* ═════════════════════════════  CONFIGURAÇÕES  ═══════════════════════════ */
 
 function broadcastSettings() {
-    [widgetWindow, settingsWindow, quickCaptureWindow, alarmWindow]
+    [widgetWindow, settingsWindow, quickCaptureWindow, alarmWindow, ...noteWindows.values()]
         .filter(w => w && !w.isDestroyed())
         .forEach(w => w.webContents.send("apply-settings", data.settings));
 }
@@ -431,6 +435,139 @@ function openSettingsWindow(onReady) {
         if (onReady) settingsWindow.webContents.once("did-finish-load", onReady);
     }
 }
+
+/* ═══════════════════  NOTA EM JANELA (BLOCO DE NOTAS)  ════════════════════ */
+// Uma nota aberta em janela própria: redimensionável, com entrada na barra
+// de tarefas e fundo opaco -- pra escrever texto longo sem o aperto do
+// widget ancorado no canto. Uma janela por nota (Map por id): pedir de novo
+// a mesma nota foca a janela existente em vez de abrir uma segunda.
+
+const noteWindows = new Map();
+const NOTE_WINDOW_MIN = { width: 320, height: 220 };
+const NOTE_WINDOW_DEFAULT = { width: 520, height: 460 };
+
+function noteWindowBounds() {
+    const { workArea } = screen.getPrimaryDisplay();
+    const width = data.noteWindow?.width || NOTE_WINDOW_DEFAULT.width;
+    const height = data.noteWindow?.height || NOTE_WINDOW_DEFAULT.height;
+    // Cascata curta pra segunda janela não nascer exatamente em cima da
+    // primeira e dar a impressão de que nada abriu.
+    const offset = (noteWindows.size % 6) * 26;
+    return {
+        width,
+        height,
+        x: Math.round(workArea.x + (workArea.width - width) / 2 + offset),
+        y: Math.round(workArea.y + (workArea.height - height) / 2 + offset)
+    };
+}
+
+// Nota que nasceu e ninguém escreveu nada não fica pra trás — mesma regra
+// que o widget já aplica ao recolher um card intocado.
+function discardUntouchedNote(noteId) {
+    const note = data.notes.find(n => n.id === noteId);
+    if (!note || note.title !== "Nova nota" || note.content.trim()) return;
+    data.notes = data.notes.filter(n => n.id !== noteId);
+    log("[NOTA] Nota em branco descartada ao fechar a janela:", noteId);
+    debouncedSaveData();
+    widgetWindow?.webContents.send("notes-updated", data.notes);
+}
+
+function openNoteWindow(noteId) {
+    const existing = noteWindows.get(noteId);
+    if (existing && !existing.isDestroyed()) {
+        if (existing.isMinimized()) existing.restore();
+        existing.show();
+        existing.focus();
+        return;
+    }
+    if (!data.notes.some(n => n.id === noteId)) {
+        warn("[NOTA] Janela pedida para uma nota que não existe:", noteId);
+        return;
+    }
+
+    const win = new BrowserWindow({
+        ...noteWindowBounds(),
+        minWidth: NOTE_WINDOW_MIN.width,
+        minHeight: NOTE_WINDOW_MIN.height,
+        frame: false,
+        resizable: true,
+        movable: true,
+        skipTaskbar: false,   // ao contrário do widget, esta é uma janela "de verdade"
+        show: false,          // só aparece pronta, sem lampejo de fundo branco
+        webPreferences: SECURE_PREFS
+    });
+
+    noteWindows.set(noteId, win);
+    win.loadFile(path.join(__dirname, "../html/note.html"), { query: { id: noteId } });
+    win.once("ready-to-show", () => win.show());
+
+    // O tamanho é uma preferência só, compartilhada por todas as janelas de
+    // nota — guardar por nota encheria o data.json de bounds sem necessidade.
+    win.on("resized", () => {
+        if (win.isDestroyed() || win.isMinimized() || win.isMaximized()) return;
+        const [width, height] = win.getSize();
+        data.noteWindow = { width, height };
+        debouncedSaveData(1000);
+    });
+
+    win.on("closed", () => {
+        noteWindows.delete(noteId);
+        discardUntouchedNote(noteId);
+        log("[NOTA] Janela fechada:", noteId);
+    });
+
+    log("[NOTA] Janela aberta:", noteId);
+}
+
+// Nota editada (ou excluída) em outro lugar enquanto a janela dela está
+// aberta. Excluída -> a janela fecha junto; editada -> o conteúdo desce, e
+// quem decide se aplica é o próprio renderer (ver Note.js: não sobrescreve
+// no meio de uma digitação).
+function syncNoteWindows() {
+    for (const [id, win] of noteWindows) {
+        if (win.isDestroyed()) { noteWindows.delete(id); continue; }
+        const note = data.notes.find(n => n.id === id);
+        if (!note) { win.close(); continue; }
+        win.webContents.send("note-updated", note);
+    }
+}
+
+// Atalho global: cria a nota já abrindo direto no modo janela, sem passar
+// pelo widget.
+function createNoteInWindow() {
+    const note = {
+        id: require("crypto").randomUUID(),
+        title: "Nova nota",
+        content: "",
+        createdAt: Date.now(),
+        updatedAt: Date.now()
+    };
+    data.notes.unshift(note);
+    log("[NOTA] Nota criada já em janela.");
+    debouncedSaveData();
+    widgetWindow?.webContents.send("notes-updated", data.notes);
+    openNoteWindow(note.id);
+}
+
+ipcMain.on("open-note-window", (event, noteId) => {
+    if (typeof noteId === "string" && noteId) openNoteWindow(noteId);
+});
+
+ipcMain.handle("note-data", (event, noteId) => data.notes.find(n => n.id === noteId) || null);
+
+ipcMain.on("note-save", (event, payload) => {
+    if (!payload || typeof payload.id !== "string") return;
+    const note = data.notes.find(n => n.id === payload.id);
+    if (!note) return;
+    note.title = (payload.title || "").trim() || "Sem título";
+    if (typeof payload.content === "string") note.content = payload.content;
+    note.updatedAt = Date.now();
+    debouncedSaveData();
+    widgetWindow?.webContents.send("notes-updated", data.notes);
+});
+
+ipcMain.on("note-close", (event) => BrowserWindow.fromWebContents(event.sender)?.close());
+ipcMain.on("note-minimize", (event) => BrowserWindow.fromWebContents(event.sender)?.minimize());
 
 /* ═════════════════════════════  CAPTURA RÁPIDA  ══════════════════════════ */
 
@@ -495,10 +632,11 @@ function toggleWidgetVisibility() {
 function registerShortcuts() {
     globalShortcut.unregisterAll();
 
-    const { toggleWidget, quickCapture } = data.settings.shortcuts;
+    const { toggleWidget, quickCapture, newNoteWindow } = data.settings.shortcuts;
     const bindings = [
         [toggleWidget, toggleWidgetVisibility],
-        [quickCapture, showQuickCapture]
+        [quickCapture, showQuickCapture],
+        [newNoteWindow, createNoteInWindow]
     ];
 
     for (const [accelerator, handler] of bindings) {
@@ -756,6 +894,7 @@ function createTray() {
         { label: "Captura rápida", click: showQuickCapture },
         { type: "separator" },
         { label: "Nova nota",  click: () => quickCreate("nota") },
+        { label: "Nova nota em janela", click: createNoteInWindow },
         { label: "Nova lista", click: () => quickCreate("lista") },
         { label: "Novo evento", click: () => quickCreate("evento") },
         { label: "Novo aniversariante", click: () => quickCreate("aniversario") },

@@ -45,7 +45,7 @@ Um mascote em pixel art com 4 status: vida, fome, carência e higiene.
 
 Três abas, cada uma com seus próprios cards, arrastáveis para reordenar:
 
-- **Notas** — texto livre, com prévia recolhida e editor expandido.
+- **Notas** — texto livre, com prévia recolhida e editor expandido. O botão de expandir no canto do card abre a nota numa **janela própria, estilo bloco de notas**: redimensionável, com entrada na barra de tarefas, contador de palavras/caracteres/linhas e gravação automática. `Ctrl+Alt+J` cria uma nota já abrindo direto nesse modo. O que você escreve na janela aparece no widget e vice-versa.
 - **Listas** — itens com checkbox, reordenáveis, "Enter" continua a lista igual Notion/Todoist.
 - **Eventos** — data, recorrência (diária/semanal/mensal/anual), horário de início/fim opcional, link, checklist próprio, e alarme sonoro que toca na hora marcada (sintetizado via Web Audio, sem depender de arquivo de áudio externo). Eventos sem horário avisam quando o widget é aberto no dia marcado, em vez de tocar o alarme. Evento recorrente avança sozinho para a próxima ocorrência quando a data passa — marcar como concluído é um registro, não um pré-requisito. Já o evento único atrasado continua aparecendo como atrasado, que é justamente o que precisa chamar atenção.
 
@@ -95,6 +95,7 @@ O instalador é gerado em `dist/Note-Chan-Setup-<versão>.exe`.
 |---|---|
 | `Ctrl+Alt+N` (padrão) | Mostrar/ocultar o widget |
 | `Ctrl+Alt+Q` (padrão) | Captura rápida de nota (de qualquer app) |
+| `Ctrl+Alt+J` (padrão) | Nova nota já aberta em janela (modo bloco de notas) |
 | `Ctrl+F` | Abrir a busca por card |
 | `←` / `→` | Trocar de aba |
 | `↑` / `↓` | Navegar entre os cards |
@@ -166,7 +167,7 @@ Toda a interface usa SVG do conjunto [Lucide](https://lucide.dev/) (ISC license)
 
 - **Processo principal** (`src/js/Main.js`) — dono das janelas, da bandeja do sistema, dos atalhos globais, do alarme e notificações, da sincronização com o Google (`GoogleAuth.js` + `GoogleCalendarSync.js`) e da persistência (`DataManager.js`). Nenhuma janela do renderer tem acesso a Node.js (`nodeIntegration: false`, `contextIsolation: true`, `sandbox: true`).
 - **Renderer** (`src/js/preload.js` + `Widget.js`, `Settings.js`, `QuickCapture.js`, `Alarm.js`) — cada janela HTML fala com o processo principal só através de um `window.api` restrito, exposto via `contextBridge` com uma lista fechada de canais IPC permitidos.
-- **Janelas**: widget (notas/listas/eventos/bichinho), Configurações, captura rápida e o popup de alarme — cada uma é um `BrowserWindow` isolado.
+- **Janelas**: widget (notas/listas/eventos/bichinho), Configurações, captura rápida, o popup de alarme e a nota em janela — cada uma é um `BrowserWindow` isolado. A nota em janela é a única redimensionável e a única que aparece na barra de tarefas; pode haver várias abertas ao mesmo tempo, uma por nota.
 - **Módulos compartilhados** (UMD, `require()` no main e `<script>` global no renderer): `EventUtils.js` (datas/recorrência), `TagUtils.js` (paleta de tags), `TamaSprite.js` (desenho do bichinho em SVG por fórmula), `Icons.js` (ícones da UI) e `UiUtils.js` (escape de HTML, confirmação de exclusão em dois toques e afins, usados igual pelo widget e por Configurações).
 
 ## Stack

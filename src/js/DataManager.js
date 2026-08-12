@@ -33,12 +33,16 @@ function defaultData() {
             lastLowNotified: {}             // { fome, higiene, carencia, vida } -> timestamp do último aviso (main)
         },
         widget: { collapsed: true, width: 320, height: 480, activeTab: "notas" },
+        // Tamanho da nota em janela ("modo bloco de notas") — uma preferência
+        // só, compartilhada por todas as janelas de nota (ver Main.js).
+        noteWindow: { width: 520, height: 460 },
         settings: {
             theme: "gold",
             transparency: 60,
             shortcuts: {
                 toggleWidget: "Control+Alt+N",
-                quickCapture: "Control+Alt+Q"
+                quickCapture: "Control+Alt+Q",
+                newNoteWindow: "Control+Alt+J"
             },
             alarm: { enabled: true, volume: 70, sound: "sininho" }
         }
@@ -62,6 +66,7 @@ function loadData() {
             ...defaults,
             ...parsed,
             widget: { ...defaults.widget, ...parsed.widget },
+            noteWindow: { ...defaults.noteWindow, ...parsed.noteWindow },
             tamagotchi: {
                 ...defaults.tamagotchi,
                 ...parsed.tamagotchi,

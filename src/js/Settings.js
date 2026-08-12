@@ -18,7 +18,8 @@ const sliderValue    = document.getElementById("transparency-value");
 const hint           = document.getElementById("shortcut-hint");
 const recorders      = {
     toggleWidget: document.getElementById("rec-toggleWidget"),
-    quickCapture: document.getElementById("rec-quickCapture")
+    quickCapture: document.getElementById("rec-quickCapture"),
+    newNoteWindow: document.getElementById("rec-newNoteWindow")
 };
 const alarmEnabledToggle = document.getElementById("alarm-enabled-toggle");
 const alarmVolumeSlider  = document.getElementById("alarm-volume-slider");
@@ -59,8 +60,9 @@ function applyToUI(s) {
     }
     if (renderedAlarmSound !== (s.alarm?.sound ?? null)) renderAlarmSoundList();
 
-    recorders.toggleWidget.textContent = s.shortcuts.toggleWidget || "(nenhum)";
-    recorders.quickCapture.textContent = s.shortcuts.quickCapture || "(nenhum)";
+    Object.entries(recorders).forEach(([action, btn]) => {
+        btn.textContent = s.shortcuts[action] || "(nenhum)";
+    });
 }
 
 /* ─────────────────────────────────  Temas  ──────────────────────────────── */

@@ -1,0 +1,146 @@
+/* ═══════════════════════════  note_style.css  ═════════════════════════════
+   Nota aberta em janela própria ("modo bloco de notas"). Diferente do
+   widget, esta janela NÃO é transparente nem ancorada: é redimensionável,
+   aparece na barra de tarefas e o fundo é opaco, porque aqui o objetivo é
+   escrever texto longo e não ficar espiando a tela por baixo.
+
+   A moldura é frameless igual às outras janelas do app, então a barra de
+   título é desenhada aqui (#note-dragbar, com -webkit-app-region: drag).
+*/
+
+* { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  padding: 0;
+  height: 100%;
+  overflow: hidden;
+  font-family: 'Segoe UI', Tahoma, sans-serif;
+  background: rgb(var(--bg-rgb, 30 30 30));
+  color: rgb(var(--panel-text-rgb, 255 255 255));
+}
+
+#note-window {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+/* ─────────────────────────────  Barra de título  ────────────────────────── */
+
+#note-dragbar {
+  position: relative;
+  flex: 0 0 auto;
+  height: 32px;
+  line-height: 32px;
+  padding-left: 8px;
+  padding-right: 56px;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  background: rgb(var(--dragbar-rgb, 10 10 10) / var(--dragbar-alpha, 0.3));
+  color: rgb(var(--accent-rgb, 255 215 0));
+  font-weight: bold;
+  letter-spacing: 0.5px;
+  -webkit-app-region: drag;
+  user-select: none;
+}
+
+#note-dragbar-icon {
+  display: inline-flex;
+  flex: 0 0 auto;
+}
+
+#note-dragbar-title {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 0.9em;
+}
+
+#note-window-btns {
+  position: absolute;
+  top: 0;
+  right: 5px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  -webkit-app-region: no-drag;
+}
+
+.window-btn {
+  width: 22px;
+  height: 22px;
+  margin-left: 2px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  background: none;
+  color: rgb(var(--accent-rgb, 255 215 0));
+  border-radius: 5px;
+  cursor: pointer;
+  outline: none;
+  transition: background 0.2s;
+}
+.window-btn:hover { background: rgb(var(--surface-rgb, 255 255 255) / 0.12); }
+#note-closebtn:hover { background: rgb(var(--danger-rgb, 255 128 128) / 0.25); }
+
+/* ────────────────────────────────  Conteúdo  ────────────────────────────── */
+
+#note-title {
+  flex: 0 0 auto;
+  margin: 8px 10px 4px;
+  padding: 4px 6px;
+  border: none;
+  border-bottom: 1px solid rgb(var(--surface-rgb, 255 255 255) / 0.12);
+  background: none;
+  color: rgb(var(--accent-rgb, 255 215 0));
+  font-family: inherit;
+  font-size: 1.05em;
+  font-weight: bold;
+  outline: none;
+}
+#note-title:focus { border-bottom-color: rgb(var(--accent-rgb, 255 215 0) / 0.6); }
+#note-title::placeholder { color: rgb(var(--panel-text-rgb, 255 255 255) / 0.35); font-weight: normal; }
+
+#note-content {
+  flex: 1 1 auto;
+  min-height: 0;
+  margin: 0 10px;
+  padding: 6px;
+  border: 1px solid rgb(var(--surface-rgb, 255 255 255) / 0.1);
+  border-radius: 6px;
+  background: rgb(var(--surface-rgb, 255 255 255) / 0.06);
+  color: rgb(var(--panel-text-rgb, 255 255 255));
+  font-family: 'Consolas', 'Segoe UI', monospace;
+  font-size: 0.92em;
+  line-height: 1.5;
+  resize: none;
+  outline: none;
+}
+#note-content:focus { border-color: rgb(var(--accent-rgb, 255 215 0) / 0.45); }
+#note-content::placeholder { color: rgb(var(--panel-text-rgb, 255 255 255) / 0.35); }
+
+#note-content::-webkit-scrollbar { width: 8px; }
+#note-content::-webkit-scrollbar-thumb {
+  background: rgb(var(--accent-rgb, 255 215 0) / 0.3);
+  border-radius: 4px;
+}
+#note-content::-webkit-scrollbar-thumb:hover { background: rgb(var(--accent-rgb, 255 215 0) / 0.5); }
+
+/* Rodapé no estilo da barra de status do bloco de notas: contagem à
+   esquerda, confirmação de gravação à direita. */
+#note-status {
+  flex: 0 0 auto;
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 4px 12px 6px;
+  font-size: 0.74em;
+  opacity: 0.6;
+  user-select: none;
+}
+#note-saved { white-space: nowrap; }

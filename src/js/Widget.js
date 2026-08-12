@@ -955,11 +955,12 @@ function attachHeaderToggle(card, title, expand, collapse) {
 
 function noteCardNode(note) {
     const card = document.createElement("div");
-    card.className = "card" + (expanded.has(note.id) ? " expanded" : "");
+    card.className = "card note-card" + (expanded.has(note.id) ? " expanded" : "");
     card.dataset.id = note.id;
 
     card.innerHTML = `
         <div class="card-delete" draggable="false" title="Excluir nota">${Icons.svg("x", 12)}</div>
+        <div class="card-window" draggable="false" title="Abrir em janela">${Icons.svg("maximize-2", 12)}</div>
         <div class="card-header">
             <span class="card-title" spellcheck="false" draggable="false">${escapeHtml(note.title)}</span>
             <div class="card-tags">${cardTagsInnerHtml(note.tagIds)}</div>
@@ -1038,6 +1039,14 @@ function noteCardNode(note) {
         e.preventDefault();
         e.stopPropagation();
         editor.blur();
+    });
+
+    // Abre esta nota numa janela redimensionável, estilo bloco de notas (ver
+    // openNoteWindow em Main.js). O que for digitado lá volta pra cá pelo
+    // notes-updated.
+    card.querySelector(".card-window").addEventListener("click", (e) => {
+        e.stopPropagation();
+        window.api.send("open-note-window", note.id);
     });
 
     card.querySelector(".card-delete").addEventListener("click", (e) => {
@@ -1873,15 +1882,21 @@ function flushRemoteUpdates() {
 
 document.addEventListener("focusout", () => setTimeout(flushRemoteUpdates, 0));
 
-// Captura rápida cria a nota direto no main (não tem acesso ao estado do
-// widget). Só ACRESCENTA o que ainda não existe aqui em vez de substituir a
-// lista: a cópia do main pode estar até ~900 ms atrás (400 de atraso no save
-// daqui + 500 no dele) e desfaria a edição em andamento.
+// As notas mudaram fora do widget: captura rápida, nota aberta em janela
+// própria (ver Main.js) ou o atalho de criar já em janela. Mescla por id
+// preferindo o que foi editado AQUI mais recentemente — a cópia do main pode
+// estar até ~900 ms atrás (400 de atraso no save daqui + 500 no dele) e
+// desfaria a edição em andamento.
+function mergeNotesFromMain(incoming) {
+    const localById = new Map(data.notes.map(n => [n.id, n]));
+    data.notes = incoming.map(inc => {
+        const local = localById.get(inc.id);
+        return local && (local.updatedAt || 0) > (inc.updatedAt || 0) ? local : inc;
+    });
+}
+
 window.api.on("notes-updated", (notes) => {
-    const known = new Set(data.notes.map(n => n.id));
-    const added = notes.filter(n => !known.has(n.id));
-    if (added.length === 0) return;
-    applyRemoteUpdate(() => { data.notes = [...added, ...data.notes]; });
+    applyRemoteUpdate(() => mergeNotesFromMain(notes));
 });
 
 // Sincronização com o Google Agenda alterou os eventos (criou, atualizou ou

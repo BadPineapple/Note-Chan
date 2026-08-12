@@ -431,6 +431,29 @@ svg { vertical-align: -2px; flex-shrink: 0; }
 .card:hover .card-delete { opacity: 0.75; }
 .card-delete:hover { opacity: 1 !important; background: rgb(var(--danger-rgb, 255 128 128) / 0.18); }
 
+/* Abrir a nota em janela própria, estilo bloco de notas (ver openNoteWindow
+   em Main.js). Fica à esquerda do ✕ e aparece no hover, como ele — daí o
+   respiro extra à direita só nos cards de nota, que têm dois botões ali. */
+.card.note-card { padding-right: 46px; }
+
+.card-window {
+  position: absolute;
+  top: 6px;
+  right: 24px;
+  width: 18px;
+  height: 18px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 4px;
+  color: rgb(var(--accent-rgb, 255 215 0));
+  opacity: 0;
+  cursor: pointer;
+  transition: opacity 0.15s, background 0.15s;
+}
+.card:hover .card-window { opacity: 0.7; }
+.card-window:hover { opacity: 1 !important; background: rgb(var(--accent-rgb, 255 215 0) / 0.18); }
+
 /* Armado esperando o segundo clique de confirmação (ver armDeleteConfirm) */
 .card-delete.confirm-armed {
   opacity: 1 !important;
