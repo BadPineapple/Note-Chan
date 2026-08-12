@@ -11,6 +11,7 @@ const { log, warn } = require("./Logger");
 const EventUtils = require("./EventUtils");
 const GoogleAuth = require("./GoogleAuth");
 const GoogleCalendarSync = require("./GoogleCalendarSync");
+const UpdateChecker = require("./UpdateChecker");
 
 /* ═══════════════════════════  INSTÂNCIA ÚNICA  ═══════════════════════════ */
 if (!app.requestSingleInstanceLock()) {
@@ -19,7 +20,7 @@ if (!app.requestSingleInstanceLock()) {
     return;
 }
 
-log("=== Note-Chan iniciado ===");
+log("=== Note-Chan iniciado === versão", app.getVersion());
 log("[PATHS] userData:", PATHS.userData);
 
 /* ══════════════════════════════  ESTADO  ════════════════════════════════ */
@@ -324,6 +325,51 @@ ipcMain.handle("google-disconnect", async () => {
 });
 
 ipcMain.handle("google-sync-now", () => runGoogleSync());
+
+/* ══════════════════════════  ATUALIZAÇÃO DE VERSÃO  ══════════════════════ */
+// Só verifica e avisa -- baixar e instalar continua sendo decisão do
+// usuário (ver UpdateChecker.js e o README). A checagem automática roda no
+// máximo uma vez por dia e só no app instalado: em desenvolvimento a versão
+// é a do package.json e bater no GitHub a cada `npm start` não ajuda ninguém.
+
+const UPDATE_CHECK_INTERVAL_MS = 24 * 60 * 60 * 1000;
+const UPDATE_CHECK_BOOT_DELAY_MS = 20 * 1000; // não disputa com a abertura do app
+
+function showUpdateNotification(result) {
+    if (!Notification.isSupported()) return;
+    const n = new Notification({
+        title: "Note-Chan",
+        body: `A versão ${result.latest} saiu (você está na ${result.current}). Clique para abrir a página de download.`,
+        icon: path.join(__dirname, "../../assets/img/icon.png")
+    });
+    n.on("click", () => shell.openExternal(result.url));
+    n.show();
+}
+
+async function checkForUpdatesInBackground() {
+    const state = data.updateCheck;
+    if (Date.now() - (state.lastCheckAt || 0) < UPDATE_CHECK_INTERVAL_MS) return;
+
+    const result = await UpdateChecker.check();
+    state.lastCheckAt = Date.now();
+    debouncedSaveData();
+
+    if (!result.ok || !result.updateAvailable) return;
+    // Avisa uma vez por versão nova: quem viu e decidiu não atualizar agora
+    // não precisa ser lembrado todo dia.
+    if (state.notifiedVersion === result.latest) return;
+    state.notifiedVersion = result.latest;
+    debouncedSaveData();
+    showUpdateNotification(result);
+}
+
+ipcMain.handle("check-update", async () => {
+    const result = await UpdateChecker.check();
+    data.updateCheck.lastCheckAt = Date.now();
+    if (result.updateAvailable) data.updateCheck.notifiedVersion = result.latest;
+    debouncedSaveData();
+    return result;
+});
 
 /* ═════════════════════════════  ÍCONE DA BANDEJA  ════════════════════════ */
 
@@ -953,6 +999,11 @@ app.whenReady().then(() => {
     setInterval(() => {
         if (GoogleAuth.isConnected()) runGoogleSync();
     }, GOOGLE_SYNC_INTERVAL_MS);
+
+    if (app.isPackaged) {
+        setTimeout(checkForUpdatesInBackground, UPDATE_CHECK_BOOT_DELAY_MS);
+        setInterval(checkForUpdatesInBackground, UPDATE_CHECK_INTERVAL_MS);
+    }
 });
 
 app.on("will-quit", () => {

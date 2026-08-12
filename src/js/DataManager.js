@@ -36,6 +36,9 @@ function defaultData() {
         // Tamanho da nota em janela ("modo bloco de notas") — uma preferência
         // só, compartilhada por todas as janelas de nota (ver Main.js).
         noteWindow: { width: 520, height: 460 },
+        // Verificação de versão (ver UpdateChecker.js): quando foi a última
+        // consulta e de qual versão nova o usuário já foi avisado.
+        updateCheck: { lastCheckAt: null, notifiedVersion: null },
         settings: {
             theme: "gold",
             transparency: 60,
@@ -67,6 +70,7 @@ function loadData() {
             ...parsed,
             widget: { ...defaults.widget, ...parsed.widget },
             noteWindow: { ...defaults.noteWindow, ...parsed.noteWindow },
+            updateCheck: { ...defaults.updateCheck, ...parsed.updateCheck },
             tamagotchi: {
                 ...defaults.tamagotchi,
                 ...parsed.tamagotchi,

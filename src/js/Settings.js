@@ -743,4 +743,55 @@ window.api.invoke("get-data").then(loaded => {
 
 window.api.invoke("get-app-version").then(version => {
     document.getElementById("app-version").textContent = `v${version}`;
+    document.getElementById("app-version-inline").textContent = `v${version}`;
+});
+
+/* ══════════════════════════════  ATUALIZAÇÕES  ════════════════════════════ */
+// Só consulta e avisa; quem baixa é o usuário (ver UpdateChecker.js).
+
+const updateStatus   = document.getElementById("update-status");
+const updateHint     = document.getElementById("update-hint");
+const updateCheckBtn = document.getElementById("update-check-btn");
+const updateDownloadBtn = document.getElementById("update-download-btn");
+
+let updateUrl = null;
+
+function applyUpdateResult(result) {
+    if (!result.ok) {
+        updateHint.textContent = "Não foi possível verificar agora: " + (result.error || "erro desconhecido")
+            + ". Sem internet ou atrás de um proxy, isso é esperado.";
+        updateDownloadBtn.classList.add("hidden");
+        return;
+    }
+    if (result.noReleases) {
+        updateHint.textContent = "Nenhuma versão publicada ainda no GitHub para comparar.";
+        updateDownloadBtn.classList.add("hidden");
+        return;
+    }
+    if (result.updateAvailable) {
+        updateStatus.innerHTML = `Versão <b>${escapeHtml(result.latest)}</b> disponível — você está na v${escapeHtml(result.current)}`;
+        updateHint.textContent = "O download é manual: o botão abaixo abre a página do release no navegador.";
+        updateUrl = result.url;
+        updateDownloadBtn.classList.remove("hidden");
+        return;
+    }
+    updateStatus.textContent = `Versão instalada: v${result.current}`;
+    updateHint.textContent = `Você já está na versão mais recente (${result.latest}).`;
+    updateDownloadBtn.classList.add("hidden");
+}
+
+updateCheckBtn.addEventListener("click", async () => {
+    updateCheckBtn.disabled = true;
+    updateCheckBtn.textContent = "Verificando...";
+    updateHint.textContent = "Consultando os releases no GitHub...";
+    try {
+        applyUpdateResult(await window.api.invoke("check-update"));
+    } finally {
+        updateCheckBtn.disabled = false;
+        updateCheckBtn.textContent = "Verificar";
+    }
+});
+
+updateDownloadBtn.addEventListener("click", () => {
+    if (updateUrl) window.api.send("open-link", updateUrl);
 });

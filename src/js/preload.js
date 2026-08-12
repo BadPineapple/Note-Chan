@@ -18,7 +18,7 @@ const SEND = new Set([
 
 // Rotas com resposta
 const INVOKE = new Set([
-    "get-data", "get-app-version", "note-data",
+    "get-data", "get-app-version", "note-data", "check-update",
     "google-auth-status", "google-auth-start", "google-disconnect", "google-sync-now"
 ]);
 

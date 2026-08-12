@@ -8,7 +8,8 @@
   "scripts": {
     "start": "electron .",
     "build": "electron-builder",
-    "dist": "electron-builder --win --publish never"
+    "dist": "electron-builder --win --publish never",
+    "art": "electron scripts/generate-icon.js && electron scripts/generate-installer-art.js"
   },
   "build": {
     "appId": "com.renato.notechan",
@@ -39,8 +40,18 @@
       "createDesktopShortcut": true,
       "createStartMenuShortcut": true,
       "shortcutName": "Note-Chan",
+      "menuCategory": "Note-Chan",
       "artifactName": "${productName}-Setup-${version}.${ext}",
-      "uninstallDisplayName": "${productName}"
+      "uninstallDisplayName": "${productName} ${version}",
+      "installerSidebar": "build/installerSidebar.bmp",
+      "uninstallerSidebar": "build/uninstallerSidebar.bmp",
+      "installerHeader": "build/installerHeader.bmp",
+      "include": "build/installer.nsh",
+      "license": "LICENSE",
+      "language": "1046",
+      "multiLanguageInstaller": false,
+      "runAfterFinish": true,
+      "deleteAppDataOnUninstall": false
     }
   },
   "devDependencies": {

@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8" />
+<style>
+  html, body { margin: 0; padding: 0; overflow: hidden; }
+  svg { display: block; }
+</style>
+</head>
+<body>
+<!-- Faixa do topo das páginas internas do instalador NSIS: 150x57. O NSIS
+     desenha essa imagem alinhada à DIREITA sobre um fundo branco, então o
+     lado esquerdo é claro de propósito, pra emendar sem costura visível. -->
+<svg width="150" height="57" viewBox="0 0 150 57" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="faixa" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#ffffff"/>
+      <stop offset="38%" stop-color="#fffaf0"/>
+      <stop offset="100%" stop-color="#fff2c4"/>
+    </linearGradient>
+    <linearGradient id="papel2" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#ffe066"/>
+      <stop offset="100%" stop-color="#ffd700"/>
+    </linearGradient>
+  </defs>
+
+  <rect width="150" height="57" fill="url(#faixa)"/>
+
+  <g transform="translate(96, 8) scale(0.2)">
+    <path d="M 55 128 Q 38 118 34 100" stroke="#c99a1d" stroke-width="9" stroke-linecap="round" fill="none"/>
+    <path d="M 145 128 Q 162 118 166 100" stroke="#c99a1d" stroke-width="9" stroke-linecap="round" fill="none"/>
+    <path d="M 52 52 H 128 L 148 72 V 148 Q 148 154 142 154 H 52 Q 46 154 46 148 V 58 Q 46 52 52 52 Z"
+          fill="url(#papel2)" stroke="#c99a1d" stroke-width="5"/>
+    <path d="M 128 52 L 148 72 H 134 Q 128 72 128 66 Z" fill="#f5c400" stroke="#c99a1d" stroke-width="5" stroke-linejoin="round"/>
+    <ellipse cx="65" cy="100" rx="8" ry="5.5" fill="#ff8fa3" opacity="0.6"/>
+    <ellipse cx="129" cy="100" rx="8" ry="5.5" fill="#ff8fa3" opacity="0.6"/>
+    <path d="M 72 90 Q 79 82 86 90" stroke="#4a3a08" stroke-width="7" stroke-linecap="round" fill="none"/>
+    <path d="M 108 90 Q 115 82 122 90" stroke="#4a3a08" stroke-width="7" stroke-linecap="round" fill="none"/>
+    <path d="M 91 102 Q 97 108 103 102" stroke="#4a3a08" stroke-width="6" stroke-linecap="round" fill="none"/>
+  </g>
+
+  <path d="M 92 6 V 51" stroke="#e8cf8a" stroke-width="1"/>
+</svg>
+</body>
+</html>

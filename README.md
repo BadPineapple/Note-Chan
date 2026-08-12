@@ -10,6 +10,7 @@ Feito com [Electron](https://www.electronjs.org/) puro (sem framework de UI) par
 
 - [Funcionalidades](#funcionalidades)
 - [Instalação](#instalação)
+- [Atualizações](#atualizações)
 - [Uso](#uso)
 - [Onde ficam os seus dados](#onde-ficam-os-seus-dados)
 - [Sincronização com o Google Agenda](#sincronização-com-o-google-agenda)
@@ -71,12 +72,24 @@ Clicar numa notificação do bichinho abre o widget direto no painel dele.
 - Alarme de eventos: ligar/desligar, volume e escolha de som (4 opções sintetizadas).
 - Atalhos globais reconfiguráveis (gravados clicando e pressionando a combinação desejada).
 - Sincronização com o Google Agenda: conectar/desconectar a conta e sincronizar sob demanda (ver [seção dedicada](#sincronização-com-o-google-agenda) abaixo).
+- Atualizações: versão instalada e verificação manual de versão nova (ver [Atualizações](#atualizações)).
 
 ## Instalação
 
 ### Baixando o instalador
 
-Pegue o `Note-Chan-Setup-<versão>.exe` mais recente e rode — o instalador NSIS deixa escolher a pasta de instalação e cria atalhos no Menu Iniciar e na Área de Trabalho. Não precisa de privilégio de administrador.
+Pegue o `Note-Chan-Setup-<versão>.exe` mais recente na [página de releases](https://github.com/BadPineapple/Note-Chan/releases) e rode. O instalador é em português, mostra a licença, deixa escolher a pasta e cria os atalhos na Área de Trabalho e numa pasta "Note-Chan" no Menu Iniciar. Não precisa de privilégio de administrador (instala só para o seu usuário).
+
+Instalar por cima de uma versão anterior substitui os arquivos do programa e **preserva seus dados** — eles ficam em outro lugar (ver [Onde ficam os seus dados](#onde-ficam-os-seus-dados)).
+
+### Desinstalando
+
+Por qualquer um dos dois caminhos:
+
+- **Menu Iniciar** → pasta Note-Chan → "Desinstalar Note-Chan".
+- **Configurações do Windows** → Aplicativos → Aplicativos instalados → Note-Chan → Desinstalar.
+
+A desinstalação remove o programa e os atalhos, mas **não apaga suas notas**: o `data.json` e os backups continuam em `%APPDATA%/NoteChan` caso você reinstale depois. Para apagar de vez, exclua essa pasta na mão.
 
 ### Compilando você mesmo
 
@@ -88,6 +101,19 @@ npm run dist
 ```
 
 O instalador é gerado em `dist/Note-Chan-Setup-<versão>.exe`.
+
+As artes do instalador (painel lateral e faixa do topo) ficam em `build/*.bmp` e já vêm versionadas. Para regerá-las depois de mexer no visual, rode `npm run art` — ver [Ícone do app](#ícone-do-app).
+
+## Atualizações
+
+O app **verifica** se saiu uma versão nova, mas nunca baixa nem instala nada sozinho:
+
+- Uma vez por dia (e só na versão instalada, não em desenvolvimento), consulta o release mais recente no GitHub e compara com a versão em execução.
+- Havendo uma versão nova, aparece uma notificação do sistema; clicar nela abre a página de download no navegador.
+- O aviso é dado **uma vez por versão** — quem viu e decidiu atualizar depois não é lembrado todo dia.
+- Em Configurações → Geral → Atualizações dá para verificar na hora, a qualquer momento.
+
+Não há dependência de runtime para isso: é um `GET` na API pública do GitHub com o `fetch` nativo. Sem internet ou atrás de um proxy, a verificação simplesmente falha em silêncio e o app segue funcionando igual.
 
 ## Uso
 
@@ -154,10 +180,12 @@ Não há framework de build nem bundler — os arquivos em `src/html` e `src/js`
 `assets/img/icon.png` (1024×1024) é gerado a partir de `scripts/icon-source.html` — um SVG renderizado num `BrowserWindow` do Electron e salvo em disco. Pra ajustar o mascote, edite o SVG e rode:
 
 ```bash
-npx electron scripts/generate-icon.js
+npm run art
 ```
 
-O electron-builder converte esse PNG pro `.ico` do instalador automaticamente (exige no mínimo 256×256 de origem).
+O mesmo comando regera as artes do instalador (`build/installerSidebar.bmp`, `build/uninstallerSidebar.bmp` e `build/installerHeader.bmp`) a partir de `scripts/installer-sidebar.html` e `scripts/installer-header.html`. O NSIS só aceita BMP nessas imagens, então `scripts/generate-installer-art.js` renderiza o SVG num `BrowserWindow` e escreve o BMP de 24 bits na mão — não vale puxar uma dependência de conversão de imagem só pra isso.
+
+O electron-builder converte o PNG do ícone pro `.ico` do instalador automaticamente (exige no mínimo 256×256 de origem).
 
 ### Ícones da interface
 
