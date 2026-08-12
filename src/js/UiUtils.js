@@ -52,5 +52,28 @@
         }, 2500);
     }
 
-    return { newId, escapeHtml, formatBR, armDeleteConfirm };
+    // Onde o último clique COMEÇOU. O focusout dispara no mousedown, antes do
+    // evento de click, e nesse intervalo document.activeElement já é o <body>
+    // -- ou seja, "o foco saiu do card" parece verdade mesmo com o usuário
+    // clicando dentro do próprio card. Quem recolhe/descarta card no focusout
+    // precisa dessa distinção, senão o card fecha no mousedown e o click
+    // seguinte, vendo o card já fechado, reabre.
+    //
+    // A janela de 700 ms existe porque nada "limpa" esse registro: um clique
+    // fora gera um pointerdown novo (o caso comum), mas sair do card só com
+    // Tab não gera nenhum -- aí o registro velho não pode continuar valendo.
+    const POINTER_RECENT_MS = 700;
+    let lastPointerDown = { target: null, at: 0 };
+
+    document.addEventListener("pointerdown", (e) => {
+        lastPointerDown = { target: e.target, at: Date.now() };
+    }, true);
+
+    function clickStartedInside(el) {
+        if (!lastPointerDown.target) return false;
+        if (Date.now() - lastPointerDown.at > POINTER_RECENT_MS) return false;
+        return el.contains(lastPointerDown.target);
+    }
+
+    return { newId, escapeHtml, formatBR, armDeleteConfirm, clickStartedInside };
 });

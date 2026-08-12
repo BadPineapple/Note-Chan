@@ -75,7 +75,7 @@ function scheduleSave() {
 /* ═══════════════════════════════  UTILIDADES  ═══════════════════════════ */
 
 // Compartilhadas com a janela de Configurações — ver UiUtils.js.
-const { newId, escapeHtml, formatBR, armDeleteConfirm } = UiUtils;
+const { newId, escapeHtml, formatBR, armDeleteConfirm, clickStartedInside } = UiUtils;
 
 function now() {
     return Date.now();
@@ -877,30 +877,12 @@ function attachCardDrag(card, id, itemsArray) {
 
 /* ═════════════  CABEÇALHO DO CARD: ABRIR, FECHAR E RENOMEAR  ══════════════ */
 
-// Onde o último clique COMEÇOU. O focusout dispara no mousedown, antes do
-// evento de click, e nesse intervalo document.activeElement já é o <body> --
-// ou seja, "o foco saiu do card" parecia verdade mesmo com o usuário
-// clicando dentro do próprio card. O card recolhia no mousedown e o click
-// seguinte, vendo o card já fechado, reabria: era o "clico pra fechar e ele
-// abre sozinho". Só notas e listas sofriam, porque só elas põem foco num
-// campo ao expandir (evento não foca nada, por isso passava ileso).
+// clickStartedInside (ver UiUtils.js) é o que distingue "o foco saiu do
+// card" de "o usuário clicou dentro do próprio card": sem isso o card
+// recolhia no mousedown e o click seguinte, vendo o card já fechado,
+// reabria. Só notas e listas sofriam, porque só elas põem foco num campo ao
+// expandir -- evento não foca nada, por isso passava ileso.
 //
-// A janela de 700 ms existe porque nada "limpa" esse registro: um clique
-// fora do card gera um pointerdown novo (o caso comum), mas sair do card só
-// com Tab não gera nenhum -- aí o registro velho não pode continuar valendo.
-const POINTER_RECENT_MS = 700;
-let lastPointerDown = { target: null, at: 0 };
-
-document.addEventListener("pointerdown", (e) => {
-    lastPointerDown = { target: e.target, at: Date.now() };
-}, true);
-
-function clickStartedInside(el) {
-    if (!lastPointerDown.target) return false;
-    if (Date.now() - lastPointerDown.at > POINTER_RECENT_MS) return false;
-    return el.contains(lastPointerDown.target);
-}
-
 // Clique simples alterna expandido/recolhido; duplo clique no título
 // renomeia. Os dois gestos disputam o mesmo alvo, então recolher A PARTIR DO
 // TÍTULO espera a janela do duplo clique antes de valer. Sem essa espera o
@@ -952,7 +934,7 @@ function attachHeaderToggle(card, title, expand, collapse) {
     card.addEventListener("focusout", () => {
         setTimeout(() => {
             if (card.contains(document.activeElement)) return;
-            if (clickStartedInside(card)) return; // ver lastPointerDown acima
+            if (clickStartedInside(card)) return; // ver UiUtils.js
             cancelPendingCollapse();
             collapse();
         }, 0);

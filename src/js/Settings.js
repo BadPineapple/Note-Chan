@@ -196,11 +196,78 @@ window.addEventListener("keydown", (e) => {
     saveSettings({ shortcuts: { [action]: accelerator } });
 });
 
+/* ═══════════  CARD RECÉM-CRIADO QUE NINGUÉM CHEGOU A PREENCHER  ═══════════ */
+// "+ Novo aniversariante" e "+ Nova tag" já criam o card com um nome padrão.
+// Clicar algumas vezes sem preencher deixava uma pilha de "Novo
+// aniversariante"/"Nova tag" sem conteúdo real. O card que nasceu e ninguém
+// tocou some sozinho em quatro momentos: quando o foco sai dele, quando
+// outro é criado, ao trocar de aba e ao fechar a janela.
+//
+// "Tocou" é comparação com o estado de criação (nome padrão, categoria
+// vazia, data/cor iguais às do nascimento) em vez de uma marcação de
+// "sujo" -- assim não depende de lembrar de marcar em cada campo novo que
+// venha a existir. Só um card por tipo pode estar nesse estado por vez:
+// criar outro descarta o anterior.
+const NEW_BIRTHDAY_NAME = "Novo aniversariante";
+const NEW_TAG_NAME = "Nova tag";
+
+let pristine = { birthdayId: null, birthdayDate: null, tagId: null, tagColor: null };
+
+function discardPristineBirthday() {
+    const id = pristine.birthdayId;
+    const date = pristine.birthdayDate;
+    if (!id) return;
+    pristine.birthdayId = null;
+    pristine.birthdayDate = null;
+
+    const b = birthdays.find(x => x.id === id);
+    if (!b) return;
+    if (b.name !== NEW_BIRTHDAY_NAME || b.category || b.date !== date) return; // foi preenchido
+
+    birthdays = birthdays.filter(x => x.id !== id);
+    bdayExpanded.delete(id);
+    scheduleBdaySave();
+    renderBdayBoard();
+}
+
+function discardPristineTag() {
+    const id = pristine.tagId;
+    const color = pristine.tagColor;
+    if (!id) return;
+    pristine.tagId = null;
+    pristine.tagColor = null;
+
+    const t = tags.find(x => x.id === id);
+    if (!t) return;
+    if (t.name !== NEW_TAG_NAME || t.color !== color) return; // foi preenchido
+
+    tags = tags.filter(x => x.id !== id);
+    scheduleTagSave();
+    renderTagBoard();
+}
+
+function discardPristine() {
+    discardPristineBirthday();
+    discardPristineTag();
+}
+
+// Fechar a janela não espera o debounce de 400 ms dos saves — manda na hora.
+function flushPendingSaves() {
+    if (bdaySaveTimer) { clearTimeout(bdaySaveTimer); bdaySaveTimer = null; window.api.send("save-data", { birthdays }); }
+    if (tagSaveTimer) { clearTimeout(tagSaveTimer); tagSaveTimer = null; window.api.send("save-data", { tags }); }
+}
+
+window.addEventListener("beforeunload", () => {
+    discardPristine();
+    flushPendingSaves();
+});
+
 /* ══════════════════════════════  ABAS DO SETTINGS  ════════════════════════ */
 
 const stabButtons = document.querySelectorAll(".stab-btn");
 
 function setSettingsTab(tab) {
+    discardPristine();
     stabButtons.forEach(btn => btn.classList.toggle("active", btn.dataset.stab === tab));
     document.querySelectorAll(".stab-panel").forEach(panel =>
         panel.classList.toggle("active", panel.id === `stab-${tab}`));
@@ -223,7 +290,7 @@ const BIRTHDAY_CATEGORY_LABELS = { "": "Sem categoria", familia: "Família", ami
 const BIRTHDAY_CATEGORY_ICONS = { familia: "users", amigo: "user", trabalho: "briefcase" };
 
 // Compartilhadas com o widget — ver UiUtils.js.
-const { newId, escapeHtml, formatBR, armDeleteConfirm } = UiUtils;
+const { newId, escapeHtml, formatBR, armDeleteConfirm, clickStartedInside } = UiUtils;
 
 function now() { return Date.now(); }
 
@@ -309,6 +376,18 @@ function birthdayCardNode(birthday) {
     }
     refreshPreview();
 
+    // Foco saiu do card inteiro e ele continua exatamente como nasceu -> some
+    // sozinho (ver "CARD RECÉM-CRIADO" acima). clickStartedInside evita
+    // descartar no mousedown de um clique que é dentro do próprio card.
+    card.addEventListener("focusout", () => {
+        setTimeout(() => {
+            if (pristine.birthdayId !== birthday.id) return;
+            if (card.contains(document.activeElement)) return;
+            if (clickStartedInside(card)) return;
+            discardPristineBirthday();
+        }, 0);
+    });
+
     card.querySelector(".card-header").addEventListener("click", (e) => {
         if (e.detail > 1) return; // 2º clique do duplo-clique — quem trata é o dblclick
         card.classList.toggle("expanded");
@@ -374,11 +453,14 @@ function birthdayCardNode(birthday) {
 }
 
 function createBirthday() {
+    discardPristine(); // o "+ Novo" anterior que ficou em branco não fica pra trás
     const birthday = {
-        id: newId(), name: "Novo aniversariante", date: EventUtils.todayISO(), category: "",
+        id: newId(), name: NEW_BIRTHDAY_NAME, date: EventUtils.todayISO(), category: "",
         createdAt: now(), updatedAt: now()
     };
     birthdays.push(birthday);
+    pristine.birthdayId = birthday.id;
+    pristine.birthdayDate = birthday.date;
     scheduleBdaySave();
     renderBdayBoard();
     bdayExpanded.add(birthday.id);
@@ -450,6 +532,17 @@ function tagCardNode(tag) {
         </div>
     `;
 
+    // Mesma regra dos aniversariantes: tag que nasceu e ninguém preencheu
+    // some quando o foco sai dela (ver "CARD RECÉM-CRIADO" acima).
+    card.addEventListener("focusout", () => {
+        setTimeout(() => {
+            if (pristine.tagId !== tag.id) return;
+            if (card.contains(document.activeElement)) return;
+            if (clickStartedInside(card)) return;
+            discardPristineTag();
+        }, 0);
+    });
+
     const nameEl = card.querySelector(".tag-name");
     // Um clique só (não dois) -- diferente do título de nota/lista/evento, a
     // tag não tem nada mais reagindo ao clique aqui (não expande/recolhe
@@ -498,10 +591,13 @@ function tagCardNode(tag) {
 }
 
 function createTag() {
+    discardPristine(); // o "+ Nova" anterior que ficou em branco não fica pra trás
     const usedColors = tags.map(t => t.color);
     const color = TagUtils.PALETTE.find(hex => !usedColors.includes(hex)) || TagUtils.PALETTE[tags.length % TagUtils.PALETTE.length];
-    const tag = { id: newId(), name: "Nova tag", color };
+    const tag = { id: newId(), name: NEW_TAG_NAME, color };
     tags.push(tag);
+    pristine.tagId = tag.id;
+    pristine.tagColor = tag.color;
     scheduleTagSave();
     renderTagBoard();
     const card = tagBoard.querySelector(`.card[data-id="${tag.id}"]`);
