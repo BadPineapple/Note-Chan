@@ -5,11 +5,33 @@ const fs = require("fs");
 const path = require("path");
 const PATHS = require("./Paths");
 const { log, warn } = require("./Logger");
+const RichText = require("./RichText");
 
 const MAX_DAILY_BACKUPS = 14;
 
+// 1 -> 2: o conteúdo da nota era texto puro num <textarea> e passou a ser
+// HTML, porque negrito, alinhamento e tamanho de fonte não cabem em texto
+// cru (ver RichText.js). A conversão é sem perda: cada linha vira uma <div>
+// e os caracteres < > & são escapados, então uma nota que falava de HTML
+// continua mostrando as tags como texto em vez de interpretá-las.
+const SCHEMA_VERSION = 2;
+
+function migrarNotasParaHtml(notas) {
+    if (!Array.isArray(notas)) return 0;
+    let convertidas = 0;
+    for (const nota of notas) {
+        if (typeof nota.content !== "string") { nota.content = ""; continue; }
+        nota.content = RichText.fromPlainText(nota.content);
+        convertidas++;
+    }
+    return convertidas;
+}
+
 function defaultData() {
     return {
+        // Versão do FORMATO do arquivo (não a do app). Sobe quando um campo
+        // muda de significado e exige conversão -- ver migrarNotasParaHtml.
+        schemaVersion: SCHEMA_VERSION,
         notes: [],
         lists: [],
         events: [],
@@ -101,6 +123,16 @@ function loadData() {
             }
         };
         delete merged.settings.notificationsEnabled;
+
+        // Arquivo de antes da versão 2 guarda nota como texto puro. Converte
+        // uma vez só; o próximo save já grava no formato novo. O .bak e os
+        // snapshots diários seguram o formato antigo caso precise voltar.
+        if ((parsed.schemaVersion || 1) < 2) {
+            const n = migrarNotasParaHtml(merged.notes);
+            if (n) log("[DATA] Migração de formato: " + n + " nota(s) de texto puro para HTML.");
+        }
+        merged.schemaVersion = SCHEMA_VERSION;
+
         log("[DATA] Carregado de", PATHS.data, "—", summarize(merged));
         return merged;
     } catch (e) {

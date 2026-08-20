@@ -12,6 +12,7 @@ const EventUtils = require("./EventUtils");
 const GoogleAuth = require("./GoogleAuth");
 const GoogleCalendarSync = require("./GoogleCalendarSync");
 const UpdateChecker = require("./UpdateChecker");
+const RichText = require("./RichText");
 
 /* ═══════════════════════════  INSTÂNCIA ÚNICA  ═══════════════════════════ */
 if (!app.requestSingleInstanceLock()) {
@@ -227,7 +228,7 @@ ipcMain.on("quick-capture-submit", (event, text) => {
     const note = {
         id: require("crypto").randomUUID(),
         title: lines[0].slice(0, 60) || "Captura rápida",
-        content: trimmed,
+        content: RichText.fromPlainText(trimmed),
         createdAt: Date.now(),
         updatedAt: Date.now()
     };
@@ -511,7 +512,7 @@ function noteWindowBounds() {
 // que o widget já aplica ao recolher um card intocado.
 function discardUntouchedNote(noteId) {
     const note = data.notes.find(n => n.id === noteId);
-    if (!note || note.title !== "Nova nota" || note.content.trim()) return;
+    if (!note || note.title !== "Nova nota" || !RichText.isEmpty(note.content)) return;
     data.notes = data.notes.filter(n => n.id !== noteId);
     log("[NOTA] Nota em branco descartada ao fechar a janela:", noteId);
     debouncedSaveData();

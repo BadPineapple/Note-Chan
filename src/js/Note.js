@@ -30,7 +30,9 @@ function applySettings(settings) {
 }
 
 function refreshCounts() {
-    const text = contentEl.value;
+    // Contagem sobre o texto legível: com marcação no meio, "<b>oi</b>"
+    // contaria 11 caracteres em vez de 2.
+    const text = RichText.toPlainText(contentEl.innerHTML);
     const palavras = text.trim() ? text.trim().split(/\s+/).length : 0;
     const linhas = text ? text.split("\n").length : 0;
     countsEl.textContent = `${palavras} ${palavras === 1 ? "palavra" : "palavras"}`
@@ -65,7 +67,7 @@ function saveNow() {
     window.api.send("note-save", {
         id: noteId,
         title: titleEl.value,
-        content: contentEl.value
+        content: contentEl.innerHTML
     });
     marcarSalvo();
 }
@@ -75,9 +77,11 @@ titleEl.addEventListener("input", () => {
     scheduleSave();
 });
 
-contentEl.addEventListener("input", () => {
-    refreshCounts();
-    scheduleSave();
+const editor = RichEditor.attach(contentEl, {
+    onChange: () => {
+        refreshCounts();
+        scheduleSave();
+    }
 });
 
 // Enter no título desce pro corpo, em vez de não fazer nada.
@@ -110,7 +114,8 @@ window.addEventListener("beforeunload", () => { if (saveTimer) saveNow(); });
 
 function applyNote(note) {
     titleEl.value = note.title || "";
-    contentEl.value = note.content || "";
+    contentEl.innerHTML = RichText.sanitize(note.content || "");
+    editor.marcarVazio();
     refreshTitleBar();
     refreshCounts();
 }

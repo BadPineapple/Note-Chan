@@ -965,9 +965,10 @@ function noteCardNode(note) {
             <span class="card-title" spellcheck="false" draggable="false">${escapeHtml(note.title)}</span>
             <div class="card-tags">${cardTagsInnerHtml(note.tagIds)}</div>
         </div>
-        <div class="card-preview">${escapeHtml(note.content.slice(0, 80)) || "(vazia)"}</div>
+        <div class="card-preview">${escapeHtml(RichText.toPlainText(note.content).slice(0, 80)) || "(vazia)"}</div>
         <div class="card-body">
-            <textarea class="note-editor" placeholder="Escreva aqui..." draggable="false">${escapeHtml(note.content)}</textarea>
+            <div class="note-editor nc-rico" contenteditable="true" spellcheck="false" draggable="false"
+                 data-placeholder="Escreva aqui...">${RichText.sanitize(note.content)}</div>
             <div class="card-meta">Atualizado em ${formatDate(note.updatedAt)}</div>
             <div class="tag-picker"></div>
         </div>
@@ -997,7 +998,7 @@ function noteCardNode(note) {
         if (title.isContentEditable) commitTitle();
         // nota nunca editada (título e conteúdo ainda no padrão) — some
         // sozinha em vez de acumular cards vazios.
-        if (note.title === "Nova nota" && !note.content.trim()) {
+        if (note.title === "Nova nota" && RichText.isEmpty(note.content)) {
             data.notes = data.notes.filter(n => n.id !== note.id);
             card.remove();
             scheduleSave();
@@ -1027,18 +1028,21 @@ function noteCardNode(note) {
     });
 
     const editor = card.querySelector(".note-editor");
-    editor.addEventListener("input", () => {
-        note.content = editor.value;
-        note.updatedAt = now();
-        card.querySelector(".card-preview").textContent = note.content.slice(0, 80) || "(vazia)";
-        scheduleSave();
-    });
-    // Enter finaliza a edição; Shift+Enter quebra linha normalmente.
-    editor.addEventListener("keydown", (e) => {
-        if (e.key !== "Enter" || e.shiftKey) return;
-        e.preventDefault();
-        e.stopPropagation();
-        editor.blur();
+    RichEditor.attach(editor, {
+        onChange: () => {
+            // innerHTML cru aqui de propósito: quem higieniza é o attach(),
+            // na carga e na colagem. Rodar o sanitize a cada tecla custaria
+            // uma varredura do documento inteiro por caractere digitado.
+            note.content = editor.innerHTML;
+            note.updatedAt = now();
+            card.querySelector(".card-preview").textContent =
+                RichText.toPlainText(note.content).slice(0, 80) || "(vazia)";
+            scheduleSave();
+        },
+        // Esc devolve o foco sem fechar o widget: dentro do editor o Enter
+        // agora quebra linha e continua lista, então precisava sobrar alguma
+        // tecla para dizer "terminei aqui".
+        onEscape: () => editor.blur()
     });
 
     // Abre esta nota numa janela redimensionável, estilo bloco de notas (ver
@@ -1830,7 +1834,7 @@ panel.addEventListener("drop", async (e) => {
             content = `Arquivo: ${filePath || file.name}`;
         }
         const title = (file.name.replace(/\.[^.]+$/, "") || file.name).slice(0, 60);
-        data.notes.unshift({ id: newId(), title, content, createdAt: now(), updatedAt: now() });
+        data.notes.unshift({ id: newId(), title, content: RichText.fromPlainText(content), createdAt: now(), updatedAt: now() });
     }
 
     setActiveTab("notas");

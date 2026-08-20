@@ -473,6 +473,8 @@ svg { vertical-align: -2px; flex-shrink: 0; }
 .note-editor {
   width: 100%;
   min-height: 70px;
+  max-height: 260px;
+  overflow-y: auto;
   margin-top: 6px;
   padding: 6px;
   background: rgb(var(--surface-rgb, 255 255 255) / 0.08);
@@ -481,10 +483,69 @@ svg { vertical-align: -2px; flex-shrink: 0; }
   border-radius: 6px;
   font-family: inherit;
   font-size: 0.95em;
-  resize: vertical;
   outline: none;
 }
 .note-editor:focus { box-shadow: 0 0 0 1px rgb(var(--accent-rgb, 255 215 0) / 0.4) inset; }
+.note-editor::-webkit-scrollbar { width: 6px; }
+.note-editor::-webkit-scrollbar-thumb {
+  background: rgb(var(--accent-rgb, 255 215 0) / 0.3);
+  border-radius: 3px;
+}
+
+/* Regras compartilhadas pelos dois editores de nota (card do widget e janela
+   do bloco de notas). O conteúdo virou HTML (ver RichText.js), então lista,
+   indentação e código precisam de aparência definida — o padrão do navegador
+   traz margens enormes e fundo branco, que brigam com o tema. */
+.nc-rico {
+  /* o body do widget tem user-select:none; o editor precisa poder selecionar */
+  user-select: text;
+  /* pre-wrap preserva a indentação do TAB, que em HTML seria colapsada */
+  white-space: pre-wrap;
+  word-break: break-word;
+  overflow-wrap: anywhere;
+}
+.nc-rico:focus { outline: none; }
+
+/* Placeholder: :empty não serve porque um editor esvaziado contém
+   <div><br></div>. Quem controla é a classe posta pelo RichEditor. */
+.nc-rico.vazio::before {
+  content: attr(data-placeholder);
+  opacity: 0.4;
+  pointer-events: none;
+}
+
+.nc-rico ul,
+.nc-rico ol {
+  margin: 2px 0;
+  padding-left: 22px;
+}
+.nc-rico li { margin: 1px 0; }
+
+.nc-rico blockquote {
+  margin: 2px 0 2px 18px;
+  padding-left: 8px;
+  border-left: 2px solid rgb(var(--accent-rgb, 255 215 0) / 0.35);
+}
+
+.nc-rico code {
+  font-family: 'Consolas', 'Courier New', monospace;
+  font-size: 0.92em;
+  padding: 0 3px;
+  border-radius: 3px;
+  background: rgb(var(--surface-rgb, 255 255 255) / 0.12);
+}
+
+.nc-rico pre {
+  margin: 4px 0;
+  padding: 6px 8px;
+  border-radius: 5px;
+  border-left: 2px solid rgb(var(--accent-rgb, 255 215 0) / 0.5);
+  background: rgb(var(--surface-rgb, 255 255 255) / 0.1);
+  font-family: 'Consolas', 'Courier New', monospace;
+  font-size: 0.92em;
+  white-space: pre-wrap;
+}
+
 
 /* ─────────────────────────────  Itens de lista  ─────────────────────────── */
 .item-list {

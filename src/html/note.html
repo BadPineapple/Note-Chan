@@ -29,7 +29,7 @@
     </div>
 
     <input type="text" id="note-title" placeholder="Título da nota" spellcheck="false" autocomplete="off" />
-    <textarea id="note-content" placeholder="Escreva aqui..." spellcheck="false"></textarea>
+    <div id="note-content" class="nc-rico" contenteditable="true" spellcheck="false" data-placeholder="Escreva aqui..."></div>
 
     <div id="note-status">
       <span id="note-counts"></span>
@@ -37,6 +37,8 @@
     </div>
   </div>
 
+  <script src="../js/RichText.js"></script>
+  <script src="../js/RichEditor.js"></script>
   <script src="../js/Note.js"></script>
 </body>
 </html>
