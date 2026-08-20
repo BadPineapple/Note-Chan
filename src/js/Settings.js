@@ -398,6 +398,7 @@ function birthdayCardNode(birthday) {
     });
 
     const title = card.querySelector(".card-title");
+    RichEditor.ligarSetas(title);
     title.addEventListener("dblclick", (e) => {
         e.stopPropagation();
         // O 1º clique do duplo-clique pode ter recolhido o card. Reabre antes
@@ -546,6 +547,7 @@ function tagCardNode(tag) {
     });
 
     const nameEl = card.querySelector(".tag-name");
+    RichEditor.ligarSetas(nameEl);
     // Um clique só (não dois) -- diferente do título de nota/lista/evento, a
     // tag não tem nada mais reagindo ao clique aqui (não expande/recolhe
     // nada), então dblclick só criava uma pegadinha: o cursor já diz "text"

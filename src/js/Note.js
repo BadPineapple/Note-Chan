@@ -72,6 +72,8 @@ function saveNow() {
     marcarSalvo();
 }
 
+RichEditor.ligarSetas(titleEl);
+
 titleEl.addEventListener("input", () => {
     refreshTitleBar();
     scheduleSave();

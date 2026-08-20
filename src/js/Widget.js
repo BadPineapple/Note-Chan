@@ -905,6 +905,10 @@ function attachHeaderToggle(card, title, expand, collapse) {
         pendingCollapse = null;
     }
 
+    // Setas valem em qualquer texto que o usuário escreve, não só na nota
+    // (ver ligarSetas). O título passa por aqui nos três tipos de card.
+    RichEditor.ligarSetas(title);
+
     function beginTitleEdit() {
         cancelPendingCollapse();
         if (!card.classList.contains("expanded")) expand(false);
@@ -1151,6 +1155,7 @@ function listItemNode(list, item, refreshPreview, insertItemAfter) {
     });
 
     const text = li.querySelector(".item-text");
+    RichEditor.ligarSetas(text);
     text.addEventListener("blur", () => {
         item.text = text.textContent.trim();
         if (!item.text) {
@@ -1280,6 +1285,7 @@ function listCardNode(list) {
     });
 
     const addInput = card.querySelector(".item-add");
+    RichEditor.ligarSetas(addInput);
     addInput.addEventListener("keydown", (e) => {
         if (e.key !== "Enter") return;
         e.stopPropagation();
@@ -1411,6 +1417,7 @@ function eventCardNode(event) {
     event.items.forEach(item => checklistEl.appendChild(listItemNode(event, item, refreshPreview, insertEventItemAfter)));
 
     const eventItemAdd = card.querySelector(".item-add");
+    RichEditor.ligarSetas(eventItemAdd);
     eventItemAdd.addEventListener("keydown", (e) => {
         if (e.key !== "Enter") return;
         e.stopPropagation();

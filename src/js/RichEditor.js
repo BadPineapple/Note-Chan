@@ -86,6 +86,51 @@
         return false;
     }
 
+    // Mesma troca, para <input> e <textarea>. Ali não existe nó de texto para
+    // percorrer -- o conteúdo é a propriedade value, e a posição do cursor
+    // vem de selectionStart.
+    function trocarSetasEmCampo(el) {
+        const texto = el.value || "";
+        const achou = PADRAO_SETA.exec(texto);
+        if (!achou) return false;
+
+        const cursor = el.selectionStart;
+        el.setSelectionRange(achou.index, achou.index + achou[0].length);
+
+        // insertText preserva o desfazer do campo. Se o navegador recusar
+        // (campo sem foco, por exemplo), escreve direto e recoloca o cursor:
+        // a seta tem 1 caractere onde antes havia 2.
+        if (!document.execCommand("insertText", false, SETAS[achou[0]])) {
+            el.value = texto.slice(0, achou.index) + SETAS[achou[0]] + texto.slice(achou.index + achou[0].length);
+            const novo = cursor > achou.index ? cursor - 1 : cursor;
+            el.setSelectionRange(novo, novo);
+        }
+        return true;
+    }
+
+    // Liga SÓ a troca de setas num campo qualquer do app: item de tarefa,
+    // checklist de evento, título de card, captura rápida. Não transforma o
+    // campo em editor de texto rico -- negrito e companhia continuam
+    // exclusivos da nota, que é onde o conteúdo é HTML. Serve para
+    // <input>/<textarea> e para contenteditable.
+    //
+    // O adiamento é o mesmo do attach: o Chromium recusa execCommand
+    // disparado de dentro do input de outro execCommand.
+    function ligarSetas(el) {
+        if (!el) return;
+        const ehCampo = el.tagName === "INPUT" || el.tagName === "TEXTAREA";
+        let agendado = null;
+
+        el.addEventListener("input", () => {
+            if (agendado) return;
+            agendado = setTimeout(() => {
+                agendado = null;
+                if (ehCampo) trocarSetasEmCampo(el);
+                else trocarSetas(el);
+            }, 0);
+        });
+    }
+
     /* ═════════════════════════════  COMANDOS  ════════════════════════════ */
 
     // Nome interno -> comando do execCommand. Quem monta barra de ferramentas
@@ -358,7 +403,7 @@
     }
 
     return {
-        attach, executar, estado, montarBarra,
+        attach, executar, estado, montarBarra, ligarSetas,
         COMANDOS, FERRAMENTAS, BARRA_BASICA, ATALHOS_PADRAO, SETAS, INDENT_PADRAO,
         acceleradorDoEvento, atalhoLegivel
     };
