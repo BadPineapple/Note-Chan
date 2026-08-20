@@ -490,7 +490,11 @@ function openSettingsWindow(onReady) {
 // a mesma nota foca a janela existente em vez de abrir uma segunda.
 
 const noteWindows = new Map();
-const NOTE_WINDOW_MIN = { width: 320, height: 220 };
+// A largura mínima acompanha a barra de ferramentas: com alinhamento, bloco
+// de código e tamanho de fonte, os 11 controles pedem ~325px para caber numa
+// linha só. A barra quebra em duas se apertar (flex-wrap), mas aí a janela
+// perde altura de escrita à toa.
+const NOTE_WINDOW_MIN = { width: 380, height: 240 };
 const NOTE_WINDOW_DEFAULT = { width: 520, height: 460 };
 
 function noteWindowBounds() {

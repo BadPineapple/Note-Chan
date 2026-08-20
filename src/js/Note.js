@@ -86,7 +86,9 @@ const editor = RichEditor.attach(contentEl, {
     }
 });
 
-RichEditor.montarBarra(document.getElementById("note-toolbar"), editor, RichEditor.BARRA_BASICA, {
+// Barra cheia: aqui cabem alinhamento, bloco de código e tamanho de fonte,
+// que no card do widget não teriam espaço nem sentido (ver BARRA_COMPLETA).
+RichEditor.montarBarra(document.getElementById("note-toolbar"), editor, RichEditor.BARRA_COMPLETA, {
     tamanhoIcone: 15
 });
 

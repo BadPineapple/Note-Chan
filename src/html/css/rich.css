@@ -109,3 +109,21 @@
   margin: 0 3px;
   background: rgb(var(--surface-rgb, 255 255 255) / 0.18);
 }
+
+/* Seletor de tamanho de fonte. É ação, não estado: volta sozinho para
+   "Padrão" depois de aplicar (ver montarSeletorDeTamanho), então não precisa
+   parecer um campo preenchido. */
+.nc-barra-select {
+  height: 22px;
+  margin-left: 2px;
+  padding: 0 2px;
+  border: none;
+  border-radius: 4px;
+  background: rgb(var(--surface-rgb, 255 255 255) / 0.1);
+  color: rgb(var(--panel-text-rgb, 255 255 255));
+  font-family: inherit;
+  font-size: 0.78em;
+  cursor: pointer;
+  outline: none;
+}
+.nc-barra-select:hover { background: rgb(var(--surface-rgb, 255 255 255) / 0.18); }

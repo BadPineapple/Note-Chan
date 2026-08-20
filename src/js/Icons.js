@@ -61,7 +61,12 @@
         italic: '<line x1="19" x2="10" y1="4" y2="4"/><line x1="14" x2="5" y1="20" y2="20"/><line x1="15" x2="9" y1="4" y2="20"/>',
         underline: '<path d="M6 4v6a6 6 0 0 0 12 0V4"/><line x1="4" x2="20" y1="20" y2="20"/>',
         list: '<path d="M3 5h.01"/><path d="M3 12h.01"/><path d="M3 19h.01"/><path d="M8 5h13"/><path d="M8 12h13"/><path d="M8 19h13"/>',
-        "list-ordered": '<path d="M10 6h11"/><path d="M10 12h11"/><path d="M10 18h11"/><path d="M4 6h1v4"/><path d="M4 10h2"/><path d="M6 18H4c0-1 2-2 2-3s-1-1.5-2-1"/>'
+        "list-ordered": '<path d="M10 6h11"/><path d="M10 12h11"/><path d="M10 18h11"/><path d="M4 6h1v4"/><path d="M4 10h2"/><path d="M6 18H4c0-1 2-2 2-3s-1-1.5-2-1"/>',
+        "align-left": '<path d="M15 12H3"/><path d="M17 18H3"/><path d="M21 6H3"/>',
+        "align-center": '<path d="M17 12H7"/><path d="M19 18H5"/><path d="M21 6H3"/>',
+        "align-right": '<path d="M21 12H9"/><path d="M21 18H7"/><path d="M21 6H3"/>',
+        "align-justify": '<path d="M3 12h18"/><path d="M3 18h18"/><path d="M3 6h18"/>',
+        code: '<path d="m16 18 6-6-6-6"/><path d="m8 6-6 6 6 6"/>'
     };
 
     // play/pause ficam melhor com preenchimento sólido nesse tamanho pequeno
