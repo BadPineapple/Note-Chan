@@ -9,6 +9,7 @@ Feito com [Electron](https://www.electronjs.org/) puro (sem framework de UI) par
 ## Índice
 
 - [Funcionalidades](#funcionalidades)
+- [Ferramentas de texto](#ferramentas-de-texto)
 - [Instalação](#instalação)
 - [Atualizações](#atualizações)
 - [Uso](#uso)
@@ -71,8 +72,36 @@ Clicar numa notificação do bichinho abre o widget direto no painel dele.
 - Transparência do widget ajustável.
 - Alarme de eventos: ligar/desligar, volume e escolha de som (4 opções sintetizadas).
 - Atalhos globais reconfiguráveis (gravados clicando e pressionando a combinação desejada).
+- Editor de texto: tamanho padrão da fonte da nota, tamanho da indentação do TAB e os atalhos de formatação (ver [Ferramentas de texto](#ferramentas-de-texto)).
 - Sincronização com o Google Agenda: conectar/desconectar a conta e sincronizar sob demanda (ver [seção dedicada](#sincronização-com-o-google-agenda) abaixo).
 - Atualizações: versão instalada e verificação manual de versão nova (ver [Atualizações](#atualizações)).
+
+## Ferramentas de texto
+
+O conteúdo da nota é texto formatado, não texto cru. A barra aparece no card ao expandir e na janela do bloco de notas.
+
+| Ferramenta | Onde | Atalho padrão |
+|---|---|---|
+| Negrito | Nota (widget e janela) | `Ctrl+B` |
+| Itálico | Nota (widget e janela) | `Ctrl+I` |
+| Sublinhado | Nota (widget e janela) | `Ctrl+U` |
+| Lista | Nota (widget e janela) | `Ctrl+Shift+L` |
+| Lista numerada | Nota (widget e janela) | `Ctrl+Shift+O` |
+| Alinhamento (4 opções) | Só na janela | — |
+| Bloco de código | Só na janela | — |
+| Tamanho da fonte | Só na janela | — |
+
+Alinhamento, bloco de código e tamanho de fonte ficam só na janela porque num card de 320px de largura não teriam onde caber, e nem apareceriam na prévia.
+
+Além dos botões:
+
+- **TAB** indenta o texto e, dentro de uma lista, cria sublista (`Shift+TAB` volta um nível).
+- **`->` e `<-`** viram → e ← enquanto você digita. Isso vale em **todo o app** — item de tarefa, checklist de evento, título de card, nome de aniversariante, tag e captura rápida —, e não só na nota. Fica de fora do campo de link do evento (é URL) e da busca (filtra em vez de escrever).
+- **Esc** encerra a edição da nota no widget. Dentro do editor o Enter quebra linha, senão não existiria lista de vários itens.
+
+Os atalhos de formatação são **do editor, não do sistema**: valem com o cursor dentro da nota. Um `Ctrl+B` registrado como atalho global roubaria o negrito de todos os outros programas abertos no Windows, então eles são configurados à parte dos atalhos globais, em Configurações → Geral → Editor de texto — onde também ficam o tamanho padrão da fonte e quantos espaços o TAB insere.
+
+Texto colado de outro programa passa por uma limpeza: negrito, itálico, listas e alinhamento sobrevivem; fonte, cor e classe do site de origem são descartadas, para o texto respeitar o tema do app e não inchar o `data.json`.
 
 ## Instalação
 
@@ -123,6 +152,9 @@ Não há dependência de runtime para isso: é um `GET` na API pública do GitHu
 | `Ctrl+Alt+Q` (padrão) | Captura rápida de nota (de qualquer app) |
 | `Ctrl+Alt+J` (padrão) | Nova nota já aberta em janela (modo bloco de notas) |
 | `Ctrl+F` | Abrir a busca por card |
+| `Ctrl+B` / `Ctrl+I` / `Ctrl+U` | Negrito / itálico / sublinhado, dentro da nota |
+| `Ctrl+Shift+L` / `Ctrl+Shift+O` | Lista / lista numerada, dentro da nota |
+| `TAB` | Indentar (dentro de lista, criar sublista) |
 | `←` / `→` | Trocar de aba |
 | `↑` / `↓` | Navegar entre os cards |
 | `Enter` | Abrir/fechar o card selecionado |
@@ -135,7 +167,7 @@ O ícone da bandeja do sistema também dá acesso rápido a: abrir o widget, cap
 
 ## Onde ficam os seus dados
 
-Tudo fica em `data.json` dentro da pasta de dados do usuário do Windows (`%APPDATA%/NoteChan`). A cada gravação:
+Tudo fica em `data.json` dentro da pasta de dados do usuário do Windows (`%APPDATA%/NoteChan`). O arquivo tem um `schemaVersion`: quando um campo muda de significado, a conversão roda uma vez na abertura (o conteúdo da nota, por exemplo, era texto puro e passou a ser HTML). A cada gravação:
 
 - Uma cópia do estado anterior é mantida (`data.json.bak`) como rede de segurança contra uma escrita corrompida.
 - Um snapshot datado é salvo em `backups/` uma vez por dia, mantendo os últimos 14 dias.
@@ -196,7 +228,7 @@ Toda a interface usa SVG do conjunto [Lucide](https://lucide.dev/) (ISC license)
 - **Processo principal** (`src/js/Main.js`) — dono das janelas, da bandeja do sistema, dos atalhos globais, do alarme e notificações, da sincronização com o Google (`GoogleAuth.js` + `GoogleCalendarSync.js`) e da persistência (`DataManager.js`). Nenhuma janela do renderer tem acesso a Node.js (`nodeIntegration: false`, `contextIsolation: true`, `sandbox: true`).
 - **Renderer** (`src/js/preload.js` + `Widget.js`, `Settings.js`, `QuickCapture.js`, `Alarm.js`) — cada janela HTML fala com o processo principal só através de um `window.api` restrito, exposto via `contextBridge` com uma lista fechada de canais IPC permitidos.
 - **Janelas**: widget (notas/listas/eventos/bichinho), Configurações, captura rápida, o popup de alarme e a nota em janela — cada uma é um `BrowserWindow` isolado. A nota em janela é a única redimensionável e a única que aparece na barra de tarefas; pode haver várias abertas ao mesmo tempo, uma por nota.
-- **Módulos compartilhados** (UMD, `require()` no main e `<script>` global no renderer): `EventUtils.js` (datas/recorrência), `TagUtils.js` (paleta de tags), `TamaSprite.js` (desenho do bichinho em SVG por fórmula), `Icons.js` (ícones da UI) e `UiUtils.js` (escape de HTML, confirmação de exclusão em dois toques e afins, usados igual pelo widget e por Configurações).
+- **Módulos compartilhados** (UMD, `require()` no main e `<script>` global no renderer): `EventUtils.js` (datas/recorrência), `TagUtils.js` (paleta de tags), `TamaSprite.js` (desenho do bichinho em SVG por fórmula), `Icons.js` (ícones da UI), `UiUtils.js` (escape de HTML, confirmação de exclusão em dois toques e afins), `RichText.js` (o formato da nota: limpeza, conversão para texto e migração) e `RichEditor.js` (comportamento do editor e a barra de ferramentas, iguais nos dois lugares onde se escreve nota).
 
 ## Stack
 

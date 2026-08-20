@@ -64,10 +64,26 @@ function defaultData() {
         settings: {
             theme: "gold",
             transparency: 60,
+            // ATALHOS GLOBAIS: registrados no sistema (globalShortcut), valem
+            // com o Note-Chan em segundo plano.
             shortcuts: {
                 toggleWidget: "Control+Alt+N",
                 quickCapture: "Control+Alt+Q",
                 newNoteWindow: "Control+Alt+J"
+            },
+            // Preferências do editor de nota (ver RichEditor.js). fontSize em
+            // pixel; indentSize é quantos espaços o TAB insere fora de lista.
+            editor: { fontSize: 15, indentSize: 4 },
+            // ATALHOS DO EDITOR: tratados dentro do contenteditable, NÃO
+            // registrados no sistema. Ctrl+B em globalShortcut roubaria o
+            // negrito de todo outro programa aberto no Windows -- por isso
+            // moram separados de settings.shortcuts.
+            editorShortcuts: {
+                negrito: "Control+B",
+                italico: "Control+I",
+                sublinhado: "Control+U",
+                lista: "Control+Shift+L",
+                listaNumerada: "Control+Shift+O"
             },
             alarm: { enabled: true, volume: 70, sound: "sininho" }
         }
@@ -110,6 +126,8 @@ function loadData() {
                 ...defaults.settings,
                 ...parsed.settings,
                 shortcuts: { ...defaults.settings.shortcuts, ...parsed.settings?.shortcuts },
+                editor: { ...defaults.settings.editor, ...parsed.settings?.editor },
+                editorShortcuts: { ...defaults.settings.editorShortcuts, ...parsed.settings?.editorShortcuts },
                 alarm: {
                     ...defaults.settings.alarm,
                     // migra o antigo notificationsEnabled se essa versão ainda

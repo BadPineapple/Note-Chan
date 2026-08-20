@@ -482,7 +482,8 @@ svg { vertical-align: -2px; flex-shrink: 0; }
   border: none;
   border-radius: 6px;
   font-family: inherit;
-  font-size: 0.95em;
+  /* o padrão de 0.95em vale enquanto Configurações não definir um tamanho */
+  font-size: var(--nc-fonte-nota, 0.95em);
   outline: none;
 }
 .note-editor:focus { box-shadow: 0 0 0 1px rgb(var(--accent-rgb, 255 215 0) / 0.4) inset; }

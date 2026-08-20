@@ -291,6 +291,30 @@ h2 {
 }
 #update-download-btn { margin-top: 8px; margin-bottom: 0; }
 
+/* Subtítulo dentro de uma seção (ex.: "Atalhos de formatação"). */
+.sub-titulo {
+  margin: 14px 0 6px;
+  font-size: 0.82em;
+  font-weight: bold;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  opacity: 0.6;
+}
+
+.settings-select {
+  min-width: 96px;
+  padding: 5px 6px;
+  border: none;
+  border-radius: 6px;
+  background: rgb(var(--bg-rgb) / 0.5);
+  color: rgb(var(--accent-rgb));
+  font-family: inherit;
+  font-size: 0.88em;
+  cursor: pointer;
+  outline: none;
+}
+.settings-select:hover { background: rgb(var(--accent-rgb) / 0.14); }
+
 .hidden { display: none; }
 
 /* ────────────────────────────────  Footer  ──────────────────────────────── */

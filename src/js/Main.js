@@ -208,6 +208,8 @@ ipcMain.on("save-settings", (event, settings) => {
         ...data.settings,
         ...settings,
         shortcuts: { ...data.settings.shortcuts, ...settings.shortcuts },
+        editor: { ...data.settings.editor, ...settings.editor },
+        editorShortcuts: { ...data.settings.editorShortcuts, ...settings.editorShortcuts },
         alarm: { ...data.settings.alarm, ...settings.alarm }
     };
     log("[SETTINGS] Atualizado:", JSON.stringify(settings));

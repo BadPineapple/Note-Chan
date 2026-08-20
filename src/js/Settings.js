@@ -16,11 +16,37 @@ const themeButtons   = document.querySelectorAll(".theme-swatch");
 const slider         = document.getElementById("transparency-slider");
 const sliderValue    = document.getElementById("transparency-value");
 const hint           = document.getElementById("shortcut-hint");
-const recorders      = {
-    toggleWidget: document.getElementById("rec-toggleWidget"),
-    quickCapture: document.getElementById("rec-quickCapture"),
-    newNoteWindow: document.getElementById("rec-newNoteWindow")
+// Dois grupos de atalho, gravados em campos diferentes das configurações:
+// os globais vão para o sistema (globalShortcut em Main.js); os do editor
+// são tratados dentro do contenteditable e por isso podem repetir
+// combinações que outros programas já usam. A mecânica de gravar é a mesma,
+// só muda onde o valor é salvo.
+const GRUPOS_ATALHO = {
+    shortcuts: {
+        toggleWidget: document.getElementById("rec-toggleWidget"),
+        quickCapture: document.getElementById("rec-quickCapture"),
+        newNoteWindow: document.getElementById("rec-newNoteWindow")
+    },
+    editorShortcuts: {
+        negrito: document.getElementById("rec-negrito"),
+        italico: document.getElementById("rec-italico"),
+        sublinhado: document.getElementById("rec-sublinhado"),
+        lista: document.getElementById("rec-lista"),
+        listaNumerada: document.getElementById("rec-listaNumerada")
+    }
 };
+
+const recorders = {};    // ação -> botão
+const grupoDaAcao = {};  // ação -> em qual campo das configurações ela mora
+for (const [grupo, mapa] of Object.entries(GRUPOS_ATALHO)) {
+    for (const [acao, btn] of Object.entries(mapa)) {
+        recorders[acao] = btn;
+        grupoDaAcao[acao] = grupo;
+    }
+}
+
+const editorFontSize = document.getElementById("editor-font-size");
+const editorIndent   = document.getElementById("editor-indent");
 const alarmEnabledToggle = document.getElementById("alarm-enabled-toggle");
 const alarmVolumeSlider  = document.getElementById("alarm-volume-slider");
 const alarmVolumeValue   = document.getElementById("alarm-volume-value");
@@ -31,6 +57,8 @@ function saveSettings(partial) {
         ...settings,
         ...partial,
         shortcuts: { ...settings.shortcuts, ...partial.shortcuts },
+        editor: { ...settings.editor, ...partial.editor },
+        editorShortcuts: { ...settings.editorShortcuts, ...partial.editorShortcuts },
         alarm: { ...settings.alarm, ...partial.alarm }
     };
     window.api.send("save-settings", partial);
@@ -61,8 +89,11 @@ function applyToUI(s) {
     if (renderedAlarmSound !== (s.alarm?.sound ?? null)) renderAlarmSoundList();
 
     Object.entries(recorders).forEach(([action, btn]) => {
-        btn.textContent = s.shortcuts[action] || "(nenhum)";
+        btn.textContent = (s[grupoDaAcao[action]] || {})[action] || "(nenhum)";
     });
+
+    if (document.activeElement !== editorFontSize) editorFontSize.value = String(s.editor?.fontSize ?? 15);
+    if (document.activeElement !== editorIndent) editorIndent.value = String(s.editor?.indentSize ?? 4);
 }
 
 /* ─────────────────────────────────  Temas  ──────────────────────────────── */
@@ -128,6 +159,32 @@ function renderAlarmSoundList() {
     });
 }
 
+/* ─────────────────────────────  Editor de texto  ─────────────────────────── */
+
+const TAMANHOS_EDITOR = [12, 13, 14, 15, 16, 18, 20, 22];
+const INDENTS_EDITOR = [2, 4, 8];
+
+function preencherSelect(el, valores, rotulo) {
+    el.innerHTML = "";
+    for (const valor of valores) {
+        const op = document.createElement("option");
+        op.value = String(valor);
+        op.textContent = rotulo(valor);
+        el.appendChild(op);
+    }
+}
+
+preencherSelect(editorFontSize, TAMANHOS_EDITOR, v => v + " px");
+preencherSelect(editorIndent, INDENTS_EDITOR, v => v + (v === 1 ? " espaço" : " espaços"));
+
+editorFontSize.addEventListener("change", () => {
+    saveSettings({ editor: { fontSize: Number(editorFontSize.value) } });
+});
+
+editorIndent.addEventListener("change", () => {
+    saveSettings({ editor: { indentSize: Number(editorIndent.value) } });
+});
+
 /* ────────────────────────────────  Atalhos  ──────────────────────────────── */
 
 const KEY_MAP = {
@@ -162,7 +219,7 @@ function stopRecording(restoreLabel = true) {
     if (!recordingAction) return;
     const btn = recorders[recordingAction];
     btn.classList.remove("recording");
-    if (restoreLabel) btn.textContent = settings.shortcuts[recordingAction] || "(nenhum)";
+    if (restoreLabel) btn.textContent = (settings[grupoDaAcao[recordingAction]] || {})[recordingAction] || "(nenhum)";
     recordingAction = null;
 }
 
@@ -195,7 +252,9 @@ window.addEventListener("keydown", (e) => {
     stopRecording(false);
     hint.textContent = "Clique num atalho e pressione a combinação desejada (precisa de Ctrl, Alt ou Shift).";
     hint.classList.remove("error");
-    saveSettings({ shortcuts: { [action]: accelerator } });
+    // Vai para settings.shortcuts ou settings.editorShortcuts, conforme o
+    // grupo a que a ação pertence (ver GRUPOS_ATALHO).
+    saveSettings({ [grupoDaAcao[action]]: { [action]: accelerator } });
 });
 
 /* ═══════════  CARD RECÉM-CRIADO QUE NINGUÉM CHEGOU A PREENCHER  ═══════════ */

@@ -24,8 +24,14 @@ let loaded = false;
 
 /* ══════════════════════════════  APRESENTAÇÃO  ═══════════════════════════ */
 
+// Guardado porque o editor lê a configuração ao vivo (indentação e atalhos
+// de formatação), e ela pode mudar depois que esta janela já abriu.
+let settingsAtuais = null;
+
 function applySettings(settings) {
     if (!settings) return;
+    settingsAtuais = settings;
+    RichEditor.aplicarFonte(settings.editor?.fontSize);
     document.documentElement.dataset.theme = settings.theme || "gold";
 }
 
@@ -83,13 +89,16 @@ const editor = RichEditor.attach(contentEl, {
     onChange: () => {
         refreshCounts();
         scheduleSave();
-    }
+    },
+    indentSize: () => settingsAtuais?.editor?.indentSize,
+    atalhos: () => settingsAtuais?.editorShortcuts
 });
 
 // Barra cheia: aqui cabem alinhamento, bloco de código e tamanho de fonte,
 // que no card do widget não teriam espaço nem sentido (ver BARRA_COMPLETA).
 RichEditor.montarBarra(document.getElementById("note-toolbar"), editor, RichEditor.BARRA_COMPLETA, {
-    tamanhoIcone: 15
+    tamanhoIcone: 15,
+    atalhos: () => settingsAtuais?.editorShortcuts
 });
 
 // Enter no título desce pro corpo, em vez de não fazer nada.

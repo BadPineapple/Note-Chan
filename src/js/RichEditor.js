@@ -21,6 +21,27 @@
 })(function () {
     const INDENT_PADRAO = 4;
 
+    // Opções que mudam em Configurações depois que o editor já existe são
+    // aceitas como função, para serem lidas no momento do uso em vez de
+    // congeladas na criação.
+    function resolver(valor) {
+        return typeof valor === "function" ? valor() : valor;
+    }
+
+    // Tamanho padrão do texto da nota, em pixel. Vai numa variável de CSS em
+      // vez de direto no elemento porque os dois editores têm regras próprias
+    // de font-size (uma por classe, outra por id) -- a variável entra como
+    // valor delas e vence sem depender de especificidade.
+    function aplicarFonte(px) {
+        const n = Number(px);
+        const raiz = document.documentElement;
+        if (Number.isFinite(n) && n >= 8 && n <= 40) {
+            raiz.style.setProperty("--nc-fonte-nota", n + "px");
+        } else {
+            raiz.style.removeProperty("--nc-fonte-nota");
+        }
+    }
+
     // Digitou a seta, virou o caractere. Vale em qualquer lugar do texto.
     const SETAS = { "->": "→", "<-": "←" };
     const PADRAO_SETA = /->|<-/;
@@ -315,8 +336,7 @@
         }
 
         function tamanhoIndent() {
-            const bruto = typeof opts.indentSize === "function" ? opts.indentSize() : opts.indentSize;
-            const n = Number(bruto);
+            const n = Number(resolver(opts.indentSize));
             return Number.isFinite(n) && n > 0 && n <= 16 ? Math.round(n) : INDENT_PADRAO;
         }
 
@@ -348,15 +368,23 @@
             if (texto) document.execCommand("insertText", false, texto);
         });
 
-        // nome do comando por acelerador, montado uma vez
-        const atalhos = { ...ATALHOS_PADRAO, ...(opts.atalhos || {}) };
-        const porAcelerador = {};
-        for (const [nome, acelerador] of Object.entries(atalhos)) {
-            if (acelerador) porAcelerador[acelerador] = nome;
+        // O mapa é resolvido a cada combinação em vez de montado uma vez: os
+        // atalhos são configuráveis (ver Configurações) e os cards ficam vivos
+        // na tela, então congelar o mapa na criação deixaria o card velho
+        // obedecendo o atalho antigo. acceleradorDoEvento devolve null para
+        // tecla sem modificador, então digitar normal não paga esse custo.
+        function comandoDoAtalho(e) {
+            const acelerador = acceleradorDoEvento(e);
+            if (!acelerador) return null;
+            const atalhos = { ...ATALHOS_PADRAO, ...resolver(opts.atalhos) };
+            for (const [nome, valor] of Object.entries(atalhos)) {
+                if (valor === acelerador) return nome;
+            }
+            return null;
         }
 
         el.addEventListener("keydown", (e) => {
-            const comando = porAcelerador[acceleradorDoEvento(e) || ""];
+            const comando = comandoDoAtalho(e);
             if (comando) {
                 // preventDefault mesmo em Ctrl+B/I/U, que o contenteditable já
                 // trataria sozinho: com os dois caminhos ativos o negrito
@@ -456,7 +484,8 @@
         container.innerHTML = "";
         container.classList.add("nc-barra");
 
-        const atalhos = { ...ATALHOS_PADRAO, ...(opts.atalhos || {}) };
+        // Aqui pode congelar: o tooltip é redesenhado junto com o card.
+        const atalhos = { ...ATALHOS_PADRAO, ...resolver(opts.atalhos) };
         const botoes = [];
 
         for (const nome of nomes) {
@@ -515,7 +544,7 @@
     }
 
     return {
-        attach, executar, estado, montarBarra, ligarSetas,
+        attach, executar, estado, montarBarra, ligarSetas, aplicarFonte,
         COMANDOS, FERRAMENTAS, BARRA_BASICA, BARRA_COMPLETA, ATALHOS_PADRAO,
         TAMANHOS_FONTE, SETAS, INDENT_PADRAO,
         acceleradorDoEvento, atalhoLegivel

@@ -1047,13 +1047,19 @@ function noteCardNode(note) {
         // Esc devolve o foco sem fechar o widget: dentro do editor o Enter
         // agora quebra linha e continua lista, então precisava sobrar alguma
         // tecla para dizer "terminei aqui".
-        onEscape: () => editor.blur()
+        onEscape: () => editor.blur(),
+        // Funções, não valores: o card fica vivo na tela e precisa obedecer a
+        // configuração de agora, não a de quando foi criado.
+        indentSize: () => data.settings?.editor?.indentSize,
+        atalhos: () => data.settings?.editorShortcuts
     });
 
     // Só as ferramentas que valem em qualquer lugar. Alinhamento, código e
     // tamanho de fonte são exclusivos do bloco de notas -- num card de 320px
     // de largura eles não teriam onde caber, nem fariam sentido na prévia.
-    RichEditor.montarBarra(card.querySelector(".nc-barra"), editorApi, RichEditor.BARRA_BASICA);
+    RichEditor.montarBarra(card.querySelector(".nc-barra"), editorApi, RichEditor.BARRA_BASICA, {
+        atalhos: () => data.settings?.editorShortcuts
+    });
 
     // Abre esta nota numa janela redimensionável, estilo bloco de notas (ver
     // openNoteWindow em Main.js). O que for digitado lá volta pra cá pelo
@@ -1784,6 +1790,11 @@ document.addEventListener("keydown", (e) => {
 
 function applySettings(settings) {
     if (!settings) return;
+    // Guarda também: os editores já criados leem data.settings ao vivo para
+    // saber o tamanho da indentação e os atalhos de formatação, e sem isto
+    // ficariam com o valor do boot para sempre.
+    data.settings = settings;
+    RichEditor.aplicarFonte(settings.editor?.fontSize);
     document.documentElement.dataset.theme = settings.theme || "gold";
     const alpha = Math.min(100, Math.max(20, settings.transparency ?? 60)) / 100;
     document.documentElement.style.setProperty("--bg-alpha", alpha);
