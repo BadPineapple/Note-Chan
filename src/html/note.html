@@ -12,6 +12,7 @@
   <title>Nota — Note-Chan</title>
   <link rel="stylesheet" href="css/Theme.css" />
   <link rel="stylesheet" href="css/note_style.css" />
+  <link rel="stylesheet" href="css/rich.css" />
 </head>
 <body>
   <div id="note-window">
@@ -29,6 +30,7 @@
     </div>
 
     <input type="text" id="note-title" placeholder="Título da nota" spellcheck="false" autocomplete="off" />
+    <div id="note-toolbar"></div>
     <div id="note-content" class="nc-rico" contenteditable="true" spellcheck="false" data-placeholder="Escreva aqui..."></div>
 
     <div id="note-status">
@@ -37,6 +39,7 @@
     </div>
   </div>
 
+  <script src="../js/Icons.js"></script>
   <script src="../js/RichText.js"></script>
   <script src="../js/RichEditor.js"></script>
   <script src="../js/Note.js"></script>

@@ -105,10 +105,59 @@
         desindentar:     { cmd: "outdent" }
     };
 
+    // Metadados de apresentação: ícone e rótulo de cada ferramenta. Separado
+    // de COMANDOS de propósito -- COMANDOS é o "como faz", isto aqui é o
+    // "como aparece", e quem monta barra só precisa do segundo.
+    const FERRAMENTAS = {
+        negrito:       { icone: "bold",         titulo: "Negrito" },
+        italico:       { icone: "italic",       titulo: "Itálico" },
+        sublinhado:    { icone: "underline",    titulo: "Sublinhado" },
+        lista:         { icone: "list",         titulo: "Lista" },
+        listaNumerada: { icone: "list-ordered", titulo: "Lista numerada" }
+    };
+
+    // Ferramentas que valem nos dois editores -- o bloco de notas ganha as
+    // exclusivas dele à parte.
+    const BARRA_BASICA = ["negrito", "italico", "sublinhado", "|", "lista", "listaNumerada"];
+
+    // Atalhos DO EDITOR, não do sistema. Registrar Ctrl+B em globalShortcut
+    // roubaria o negrito de todo outro programa aberto no Windows, então
+    // estes são tratados no keydown do próprio contenteditable. O formato é o
+    // mesmo dos atalhos globais ("Control+Shift+L") para Configurações poder
+    // gravar os dois do mesmo jeito.
+    const ATALHOS_PADRAO = {
+        negrito: "Control+B",
+        italico: "Control+I",
+        sublinhado: "Control+U",
+        lista: "Control+Shift+L",
+        listaNumerada: "Control+Shift+O"
+    };
+
+    function acceleradorDoEvento(e) {
+        if (["Control", "Alt", "Shift", "Meta"].includes(e.key)) return null;
+        const partes = [];
+        if (e.ctrlKey) partes.push("Control");
+        if (e.altKey) partes.push("Alt");
+        if (e.shiftKey) partes.push("Shift");
+        if (e.metaKey) partes.push("Super");
+        if (partes.length === 0) return null; // tecla solta não é atalho
+        partes.push(e.key.length === 1 ? e.key.toUpperCase() : e.key);
+        return partes.join("+");
+    }
+
+    // "Control+Shift+L" -> "Ctrl+Shift+L", só para caber melhor no tooltip.
+    function atalhoLegivel(acelerador) {
+        return acelerador ? acelerador.replace("Control", "Ctrl").replace("Super", "Win") : "";
+    }
+
     function executar(el, nome, valor) {
         const comando = COMANDOS[nome];
         if (!comando) return false;
-        el.focus();
+        // Foca SÓ quando a seleção não está no editor: focus() num
+        // contenteditable já focado recoloca o cursor e descarta a seleção
+        // que o comando ia usar -- o botão da barra viraria um comando sem
+        // alvo, aplicando nada.
+        if (!selecaoDentro(el)) el.focus();
         document.execCommand(comando.cmd, false, valor);
         return true;
     }
@@ -188,7 +237,26 @@
             if (texto) document.execCommand("insertText", false, texto);
         });
 
+        // nome do comando por acelerador, montado uma vez
+        const atalhos = { ...ATALHOS_PADRAO, ...(opts.atalhos || {}) };
+        const porAcelerador = {};
+        for (const [nome, acelerador] of Object.entries(atalhos)) {
+            if (acelerador) porAcelerador[acelerador] = nome;
+        }
+
         el.addEventListener("keydown", (e) => {
+            const comando = porAcelerador[acceleradorDoEvento(e) || ""];
+            if (comando) {
+                // preventDefault mesmo em Ctrl+B/I/U, que o contenteditable já
+                // trataria sozinho: com os dois caminhos ativos o negrito
+                // ligaria e desligaria no mesmo toque.
+                e.preventDefault();
+                e.stopPropagation();
+                executar(el, comando);
+                onChange();
+                return;
+            }
+
             if (e.key === "Escape" && opts.onEscape) {
                 e.preventDefault();
                 e.stopPropagation();
@@ -221,11 +289,77 @@
         marcarVazio();
 
         return {
+            el,
             exec: (nome, valor) => { if (executar(el, nome, valor)) onChange(); },
             estado: () => estado(el),
             marcarVazio
         };
     }
 
-    return { attach, executar, estado, COMANDOS, SETAS, INDENT_PADRAO };
+    /* ══════════════════════════  BARRA DE FERRAMENTAS  ═══════════════════ */
+
+    // Monta os botões em `container` para o editor de `api` (o retorno do
+    // attach). `nomes` é a lista de ferramentas, com "|" onde entra separador.
+    function montarBarra(container, api, nomes, opts = {}) {
+        container.innerHTML = "";
+        container.classList.add("nc-barra");
+
+        const atalhos = { ...ATALHOS_PADRAO, ...(opts.atalhos || {}) };
+        const botoes = [];
+
+        for (const nome of nomes) {
+            if (nome === "|") {
+                const sep = document.createElement("span");
+                sep.className = "nc-barra-sep";
+                container.appendChild(sep);
+                continue;
+            }
+            const meta = FERRAMENTAS[nome];
+            if (!meta) continue;
+
+            const btn = document.createElement("button");
+            btn.type = "button";
+            btn.className = "nc-barra-btn";
+            btn.dataset.ferramenta = nome;
+            const atalho = atalhoLegivel(atalhos[nome]);
+            btn.title = atalho ? meta.titulo + " (" + atalho + ")" : meta.titulo;
+            btn.innerHTML = Icons.svg(meta.icone, opts.tamanhoIcone || 14);
+
+            // Sem isto o clique tira o foco do editor antes de chegar no
+            // handler, a seleção se perde e o comando não tem onde ser
+            // aplicado -- o botão simplesmente não faria nada.
+            btn.addEventListener("mousedown", (e) => e.preventDefault());
+            btn.addEventListener("click", (e) => {
+                e.stopPropagation();
+                api.exec(nome);
+                atualizar();
+            });
+
+            container.appendChild(btn);
+            botoes.push(btn);
+        }
+
+        function atualizar() {
+            const ativo = api.estado();
+            for (const btn of botoes) {
+                btn.classList.toggle("ativo", !!ativo[btn.dataset.ferramenta]);
+            }
+        }
+
+        // Os ouvintes ficam no próprio editor (e não em document), então morrem
+        // junto com o card quando o board é redesenhado -- selectionchange é
+        // global e vazaria um ouvinte por card criado.
+        for (const evento of ["keyup", "mouseup", "focus", "input"]) {
+            api.el.addEventListener(evento, atualizar);
+        }
+        atualizar();
+
+        return { atualizar, botoes };
+    }
+
+    return {
+        attach, executar, estado, montarBarra,
+        COMANDOS, FERRAMENTAS, BARRA_BASICA, ATALHOS_PADRAO, SETAS, INDENT_PADRAO,
+        acceleradorDoEvento, atalhoLegivel
+    };
 });

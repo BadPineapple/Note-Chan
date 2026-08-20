@@ -84,6 +84,10 @@ const editor = RichEditor.attach(contentEl, {
     }
 });
 
+RichEditor.montarBarra(document.getElementById("note-toolbar"), editor, RichEditor.BARRA_BASICA, {
+    tamanhoIcone: 15
+});
+
 // Enter no título desce pro corpo, em vez de não fazer nada.
 titleEl.addEventListener("keydown", (e) => {
     if (e.key !== "Enter") return;

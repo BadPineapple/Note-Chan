@@ -1,0 +1,111 @@
+/* ═══════════════════════════════  rich.css  ══════════════════════════════
+   Aparência do editor de texto rico, compartilhada pelos dois lugares onde
+   se escreve nota: o card do widget e a janela do bloco de notas. Fica em
+   arquivo próprio porque as regras são exatamente as mesmas nos dois —
+   copiadas em Style.css e note_style.css, elas divergiriam na primeira vez
+   que alguém mexesse só num lado.
+
+   Depende das variáveis de Theme.css, então precisa vir depois dele.
+*/
+
+/* ────────────────────────────  Área de edição  ──────────────────────────── */
+
+.nc-rico {
+  /* o body do widget tem user-select:none; o editor precisa poder selecionar */
+  user-select: text;
+  /* pre-wrap preserva a indentação do TAB, que em HTML seria colapsada */
+  white-space: pre-wrap;
+  word-break: break-word;
+  overflow-wrap: anywhere;
+}
+.nc-rico:focus { outline: none; }
+
+/* Placeholder: :empty não serve porque um editor esvaziado contém
+   <div><br></div>. Quem controla é a classe posta pelo RichEditor. */
+.nc-rico.vazio::before {
+  content: attr(data-placeholder);
+  opacity: 0.4;
+  pointer-events: none;
+}
+
+.nc-rico ul,
+.nc-rico ol {
+  margin: 2px 0;
+  padding-left: 22px;
+}
+.nc-rico li { margin: 1px 0; }
+
+.nc-rico blockquote {
+  margin: 2px 0 2px 18px;
+  padding-left: 8px;
+  border-left: 2px solid rgb(var(--accent-rgb, 255 215 0) / 0.35);
+}
+
+.nc-rico code {
+  font-family: 'Consolas', 'Courier New', monospace;
+  font-size: 0.92em;
+  padding: 0 3px;
+  border-radius: 3px;
+  background: rgb(var(--surface-rgb, 255 255 255) / 0.12);
+}
+
+.nc-rico pre {
+  margin: 4px 0;
+  padding: 6px 8px;
+  border-radius: 5px;
+  border-left: 2px solid rgb(var(--accent-rgb, 255 215 0) / 0.5);
+  background: rgb(var(--surface-rgb, 255 255 255) / 0.1);
+  font-family: 'Consolas', 'Courier New', monospace;
+  font-size: 0.92em;
+  white-space: pre-wrap;
+}
+
+/* ─────────────────────────  Barra de ferramentas  ───────────────────────── */
+/* Enxuta de propósito: no widget ela divide 320px de largura com o resto do
+   card, então é só ícone, sem rótulo. O nome e o atalho ficam no title. */
+
+.nc-barra {
+  display: flex;
+  align-items: center;
+  gap: 1px;
+  flex-wrap: wrap;
+  margin-top: 6px;
+  padding: 2px;
+  border-radius: 6px;
+  background: rgb(var(--surface-rgb, 255 255 255) / 0.06);
+}
+
+.nc-barra-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 22px;
+  padding: 0;
+  border: none;
+  border-radius: 4px;
+  background: none;
+  color: rgb(var(--panel-text-rgb, 255 255 255));
+  opacity: 0.75;
+  cursor: pointer;
+  transition: background 0.15s, opacity 0.15s;
+}
+.nc-barra-btn:hover {
+  background: rgb(var(--surface-rgb, 255 255 255) / 0.14);
+  opacity: 1;
+}
+
+/* Ligado na seleção atual (negrito aceso enquanto o cursor está em texto
+   negrito) — quem atualiza é o montarBarra, ouvindo o próprio editor. */
+.nc-barra-btn.ativo {
+  background: rgb(var(--accent-rgb, 255 215 0) / 0.18);
+  color: rgb(var(--accent-rgb, 255 215 0));
+  opacity: 1;
+}
+
+.nc-barra-sep {
+  width: 1px;
+  height: 14px;
+  margin: 0 3px;
+  background: rgb(var(--surface-rgb, 255 255 255) / 0.18);
+}

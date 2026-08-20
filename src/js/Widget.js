@@ -967,6 +967,7 @@ function noteCardNode(note) {
         </div>
         <div class="card-preview">${escapeHtml(RichText.toPlainText(note.content).slice(0, 80)) || "(vazia)"}</div>
         <div class="card-body">
+            <div class="nc-barra"></div>
             <div class="note-editor nc-rico" contenteditable="true" spellcheck="false" draggable="false"
                  data-placeholder="Escreva aqui...">${RichText.sanitize(note.content)}</div>
             <div class="card-meta">Atualizado em ${formatDate(note.updatedAt)}</div>
@@ -1028,7 +1029,7 @@ function noteCardNode(note) {
     });
 
     const editor = card.querySelector(".note-editor");
-    RichEditor.attach(editor, {
+    const editorApi = RichEditor.attach(editor, {
         onChange: () => {
             // innerHTML cru aqui de propósito: quem higieniza é o attach(),
             // na carga e na colagem. Rodar o sanitize a cada tecla custaria
@@ -1044,6 +1045,11 @@ function noteCardNode(note) {
         // tecla para dizer "terminei aqui".
         onEscape: () => editor.blur()
     });
+
+    // Só as ferramentas que valem em qualquer lugar. Alinhamento, código e
+    // tamanho de fonte são exclusivos do bloco de notas -- num card de 320px
+    // de largura eles não teriam onde caber, nem fariam sentido na prévia.
+    RichEditor.montarBarra(card.querySelector(".nc-barra"), editorApi, RichEditor.BARRA_BASICA);
 
     // Abre esta nota numa janela redimensionável, estilo bloco de notas (ver
     // openNoteWindow em Main.js). O que for digitado lá volta pra cá pelo
