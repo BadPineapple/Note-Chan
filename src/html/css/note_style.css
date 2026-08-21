@@ -17,6 +17,7 @@ html, body {
   overflow: hidden;
   font-family: var(--nc-fonte-ui, 'Segoe UI', Tahoma, sans-serif);
   background: rgb(var(--bg-rgb, 30 30 30));
+  background-image: var(--nc-textura, none);
   color: rgb(var(--panel-text-rgb, 255 255 255));
 }
 

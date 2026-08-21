@@ -22,6 +22,7 @@ svg { vertical-align: -2px; flex-shrink: 0; }
   height: 100%;
   padding: 10px 14px;
   background: rgb(var(--bg-rgb, 30 30 30) / 0.94);
+  background-image: var(--nc-textura, none);
   border: 1px solid rgb(var(--accent-rgb, 255 215 0) / 0.4);
   border-radius: var(--nc-raio-painel, 12px);
   box-shadow: 0 6px 24px #0007;
