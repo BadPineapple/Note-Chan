@@ -96,12 +96,19 @@
             }
             if (filho.nodeType !== 1) continue;
 
-            if (DROP_TAGS.has(filho.tagName)) continue;
-            if (!ALLOWED_TAGS.has(filho.tagName)) {
+            // Maiúsculo à força: elemento HTML devolve tagName em maiúsculo,
+            // mas dentro de SVG vem em minúsculo -- e aí "<svg><script>" não
+            // batia com DROP_TAGS e o código de dentro sobrava como texto da
+            // nota. As duas listas são maiúsculas, então a comparação também
+            // tem que ser.
+            const tag = filho.tagName.toUpperCase();
+
+            if (DROP_TAGS.has(tag)) continue;
+            if (!ALLOWED_TAGS.has(tag)) {
                 copiarFilhos(filho, destino, doc);
                 continue;
             }
-            const novo = doc.createElement(filho.tagName.toLowerCase());
+            const novo = doc.createElement(tag.toLowerCase());
             copiarEstilosPermitidos(filho, novo);
             copiarFilhos(filho, novo, doc);
             destino.appendChild(novo);

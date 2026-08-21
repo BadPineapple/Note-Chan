@@ -584,7 +584,7 @@ function tagCardNode(tag) {
     card.innerHTML = `
         <div class="card-delete" title="Excluir tag">${Icons.svg("x", 12)}</div>
         <div class="tag-name-row">
-            <span class="tag-color-dot" style="background:#${tag.color}"></span>
+            <span class="tag-color-dot" style="background:#${TagUtils.corSegura(tag.color)}"></span>
             <span class="tag-name" contenteditable="false" spellcheck="false">${escapeHtml(tag.name)}</span>
         </div>
         <div class="tag-swatches">
@@ -633,7 +633,7 @@ function tagCardNode(tag) {
 
     card.querySelectorAll(".tag-swatch").forEach(btn => {
         btn.addEventListener("click", () => {
-            tag.color = btn.dataset.hex;
+            tag.color = TagUtils.corSegura(btn.dataset.hex);
             card.querySelector(".tag-color-dot").style.background = `#${tag.color}`;
             card.querySelectorAll(".tag-swatch").forEach(b => b.classList.toggle("selected", b === btn));
             scheduleTagSave();

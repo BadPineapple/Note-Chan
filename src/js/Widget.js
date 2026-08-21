@@ -501,9 +501,12 @@ const tamaClamp = TamaSprite.clamp;
 // o widget só ter ficado parado numa aba diferente. fome/higiene usam
 // lastUpdate (tempo puro); carência usa lastInteraction (só anda quando o
 // usuário de fato interage -- ver tamaRegisterInteraction).
+// Devolve se algum status mudou de verdade -- o tick periódico usa isso
+// para não gravar em disco a cada 3 minutos sem ter o que salvar.
 function applyTamaDecay() {
     const tama = data.tamagotchi;
     const now = Date.now();
+    const antes = tama.vida + tama.fome + tama.carencia + tama.higiene;
 
     // Só conta o tempo em que o computador esteve de fato ligado com o app
     // rodando: um buraco grande desde a última passada significa app fechado,
@@ -552,6 +555,8 @@ function applyTamaDecay() {
     }
     // nunca "morre" nessa versão base -- só fica bem mal cuidado visualmente.
     tama.vida = Math.max(5, tama.vida);
+
+    return (tama.vida + tama.fome + tama.carencia + tama.higiene) !== antes;
 }
 
 // Marca que o usuário interagiu de verdade com o app/bichinho agora --
@@ -747,9 +752,9 @@ renderTamaActions();
 // última vez que o painel foi aberto, e as notificações de status baixo
 // (ver Main.js) ficariam paradas no tempo se o usuário nunca abrir a aba.
 setInterval(() => {
-    applyTamaDecay();
+    const mudou = applyTamaDecay();
     if (isTamaOpen()) updateTamaUI();
-    scheduleTamaSave();
+    if (mudou) scheduleTamaSave();
 }, TAMA_LIVE_TICK_MS);
 
 // Abre o painel do bichinho quando o usuário clica numa notificação sobre
@@ -989,10 +994,16 @@ function noteCardNode(note) {
         if (focusEditor) card.querySelector(".note-editor")?.focus();
     }
 
+    function atualizarPrevia() {
+        card.querySelector(".card-preview").textContent =
+            RichText.toPlainText(note.content).slice(0, 80) || "(vazia)";
+    }
+
     function collapseNote() {
         if (!card.classList.contains("expanded")) return;
         card.classList.remove("expanded");
         expanded.delete(note.id);
+        atualizarPrevia(); // volta a aparecer agora, então é aqui que vale recalcular
         // Recolher com o título ainda em edição (ex.: nota criada — o
         // título já nasce editável — fechada antes de terminar de digitar
         // o nome) commita direto em vez de confiar no evento blur -- o
@@ -1034,14 +1045,17 @@ function noteCardNode(note) {
 
     const editor = card.querySelector(".note-editor");
     const editorApi = RichEditor.attach(editor, {
+        jaHigienizado: true, // o template acima já passou pelo sanitize
         onChange: () => {
             // innerHTML cru aqui de propósito: quem higieniza é o attach(),
             // na carga e na colagem. Rodar o sanitize a cada tecla custaria
             // uma varredura do documento inteiro por caractere digitado.
             note.content = editor.innerHTML;
             note.updatedAt = now();
-            card.querySelector(".card-preview").textContent =
-                RichText.toPlainText(note.content).slice(0, 80) || "(vazia)";
+            // A prévia NÃO é atualizada aqui: ela fica escondida enquanto o
+            // card está expandido (ver .card.expanded .card-preview no CSS), e
+            // recalculá-la custa um parse do documento inteiro por tecla
+            // digitada. Quem atualiza é o collapseNote, ao voltar a aparecer.
             scheduleSave();
         },
         // Esc devolve o foco sem fechar o widget: dentro do editor o Enter

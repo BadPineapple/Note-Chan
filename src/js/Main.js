@@ -261,19 +261,51 @@ ipcMain.on("close-widget", () => {
 ipcMain.on("collapse-widget", () => setMode(true));
 ipcMain.on("expand-widget", () => setMode(false));
 
-ipcMain.on("open-link", (event, url) => {
-    if (typeof url !== "string" || !url.trim()) return;
-    let target = url.trim();
-    if (!/^https?:\/\//i.test(target)) target = `https://${target}`;
-    try {
-        const parsed = new URL(target);
-        if (parsed.protocol === "http:" || parsed.protocol === "https:") {
-            shell.openExternal(target);
-        }
-    } catch {
-        warn("[EVENTS] Link inválido ignorado:", url);
+// Nada vai para o navegador do sistema sem passar por aqui. openExternal
+// com endereço de terceiro é caminho conhecido de abuso no Electron:
+// file:// apontando para caminho de rede, ou protocolo registrado por
+// outro programa na máquina. Só http e https saem.
+function urlExternaSegura(url) {
+    if (typeof url !== "string" || !url.trim()) return null;
+    const bruto = url.trim();
+
+    // Tenta como veio PRIMEIRO: se já tem esquema, ele manda. Completar com
+    // https:// antes de olhar transformava "file:///C:/..." em
+    // "https://file:///C:/...", que passava na checagem de protocolo
+    // justamente por já não ser mais file -- a validação dizia "recusado" e
+    // devolvia um endereço mesmo assim.
+    let comEsquema = null;
+    try { comEsquema = new URL(bruto); } catch { /* sem esquema: completa abaixo */ }
+
+    // Devolve sempre o .href (a forma normalizada pelo próprio parser), nunca
+    // o texto cru: assim o que vai para o navegador é exatamente o que foi
+    // validado aqui, sem uma segunda interpretação pelo caminho. É o que faz
+    // "\\servidor\pasta" virar "https://servidor/pasta" de forma explícita.
+    const ehWeb = (u) => u.protocol === "http:" || u.protocol === "https:";
+
+    if (comEsquema) {
+        // Custo aceito: "localhost:3000" é lido como esquema "localhost" e
+        // recusado. Quem quiser abrir isso escreve "http://localhost:3000" --
+        // melhor exigir o esquema explícito do que adivinhar e abrir errado.
+        return ehWeb(comEsquema) ? comEsquema.href : null;
     }
-});
+
+    try {
+        const parsed = new URL(`https://${bruto}`);
+        return ehWeb(parsed) ? parsed.href : null;
+    } catch {
+        return null;
+    }
+}
+
+function abrirNoNavegador(url, contexto) {
+    const alvo = urlExternaSegura(url);
+    if (!alvo) { warn("[SECURITY] Endereço externo recusado", contexto, url); return false; }
+    shell.openExternal(alvo);
+    return true;
+}
+
+ipcMain.on("open-link", (event, url) => abrirNoNavegador(url, "(link de evento)"));
 
 /* ═══════════════════════  SINCRONIZAÇÃO COM O GOOGLE  ═════════════════════ */
 
@@ -345,7 +377,9 @@ function showUpdateNotification(result) {
         body: `A versão ${result.latest} saiu (você está na ${result.current}). Clique para abrir a página de download.`,
         icon: path.join(__dirname, "../../assets/img/icon.png")
     });
-    n.on("click", () => shell.openExternal(result.url));
+    // O endereço vem da resposta da API do GitHub, ou seja, de fora --
+    // mesmo caminho de validação do link de evento.
+    n.on("click", () => abrirNoNavegador(result.url, "(release)"));
     n.show();
 }
 
@@ -619,8 +653,21 @@ ipcMain.on("note-save", (event, payload) => {
     widgetWindow?.webContents.send("notes-updated", data.notes);
 });
 
-ipcMain.on("note-close", (event) => BrowserWindow.fromWebContents(event.sender)?.close());
-ipcMain.on("note-minimize", (event) => BrowserWindow.fromWebContents(event.sender)?.minimize());
+// O preload é o mesmo em todas as janelas, então qualquer uma consegue
+// mandar estes dois. Sem a checagem, um envio errado a partir do widget o
+// fecharia -- e ele só volta reiniciando o app.
+function janelaDeNota(event) {
+    const win = BrowserWindow.fromWebContents(event.sender);
+    if (!win) return null;
+    for (const aberta of noteWindows.values()) {
+        if (aberta === win) return win;
+    }
+    warn("[NOTA] Comando de janela recusado: quem enviou não é uma janela de nota.");
+    return null;
+}
+
+ipcMain.on("note-close", (event) => janelaDeNota(event)?.close());
+ipcMain.on("note-minimize", (event) => janelaDeNota(event)?.minimize());
 
 /* ═════════════════════════════  CAPTURA RÁPIDA  ══════════════════════════ */
 

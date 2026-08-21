@@ -21,6 +21,10 @@
 })(function () {
     const INDENT_PADRAO = 4;
 
+    // Teto do que uma colagem pode trazer de uma vez, em caracteres de
+    // marcação. Acima disso entra o texto puro, cortado no mesmo limite.
+    const MAX_COLAGEM = 500000;
+
     // Opções que mudam em Configurações depois que o editor já existe são
     // aceitas como função, para serem lidas no momento do uso em vez de
     // congeladas na criação.
@@ -45,6 +49,23 @@
     // Digitou a seta, virou o caractere. Vale em qualquer lugar do texto.
     const SETAS = { "->": "→", "<-": "←" };
     const PADRAO_SETA = /->|<-/;
+    const PADRAO_SETA_TODAS = /->|<-/g;
+
+    // Qual ocorrência trocar num texto: a que TERMINA no cursor é a que
+    // acabou de ser digitada. Quando a posição do cursor não ajuda (ela nem
+    // sempre acompanha a inserção), cai para a primeira do texto -- ainda
+    // dentro do mesmo nó, então o cursor no máximo anda um pouco em vez de
+    // atravessar a nota.
+    function acharSeta(texto, cursor) {
+        PADRAO_SETA_TODAS.lastIndex = 0;
+        let primeira = null;
+        let achado;
+        while ((achado = PADRAO_SETA_TODAS.exec(texto))) {
+            if (!primeira) primeira = achado;
+            if (achado.index + achado[0].length === cursor) return achado;
+        }
+        return primeira;
+    }
 
     /* ═════════════════════════════  SELEÇÃO  ═════════════════════════════ */
 
@@ -83,29 +104,24 @@
         const sel = window.getSelection();
         if (!sel) return false;
 
-        const candidatos = [];
-        if (sel.anchorNode && sel.anchorNode.nodeType === 3 && el.contains(sel.anchorNode)) {
-            candidatos.push(sel.anchorNode); // o nó onde o cursor está vem primeiro
-        }
-        const walker = document.createTreeWalker(el, NodeFilter.SHOW_TEXT);
-        let no;
-        while ((no = walker.nextNode())) {
-            if (!candidatos.includes(no)) candidatos.push(no);
-        }
+        // SÓ o nó onde o cursor está. Varrer a nota inteira fazia a troca
+        // acontecer numa seta de outra linha -- e levava o cursor junto, já
+        // que aplicar a substituição move a seleção. Nota migrada de texto
+        // puro costuma trazer "->" antigo em qualquer linha, então bastava a
+        // primeira tecla para o cursor pular.
+        const no = sel.anchorNode;
+        if (!no || no.nodeType !== 3 || !el.contains(no)) return false;
 
-        for (const alvo of candidatos) {
-            const achou = PADRAO_SETA.exec(alvo.nodeValue || "");
-            if (!achou) continue;
+        const achou = acharSeta(no.nodeValue || "", sel.anchorOffset);
+        if (!achou) return false;
 
-            const range = document.createRange();
-            range.setStart(alvo, achou.index);
-            range.setEnd(alvo, achou.index + achou[0].length);
-            sel.removeAllRanges();
-            sel.addRange(range);
-            document.execCommand("insertText", false, SETAS[achou[0]]);
-            return true;
-        }
-        return false;
+        const range = document.createRange();
+        range.setStart(no, achou.index);
+        range.setEnd(no, achou.index + achou[0].length);
+        sel.removeAllRanges();
+        sel.addRange(range);
+        document.execCommand("insertText", false, SETAS[achou[0]]);
+        return true;
     }
 
     // Mesma troca, para <input> e <textarea>. Ali não existe nó de texto para
@@ -113,10 +129,10 @@
     // vem de selectionStart.
     function trocarSetasEmCampo(el) {
         const texto = el.value || "";
-        const achou = PADRAO_SETA.exec(texto);
+        const cursor = el.selectionStart;
+        const achou = acharSeta(texto, cursor);
         if (!achou) return false;
 
-        const cursor = el.selectionStart;
         el.setSelectionRange(achou.index, achou.index + achou[0].length);
 
         // insertText preserva o desfazer do campo. Se o navegador recusar
@@ -331,8 +347,11 @@
         // O :empty do CSS não serve: um editor "vazio" no Chromium contém
         // <div><br></div>, que não é vazio para o seletor. A classe é quem
         // controla o placeholder (ver .note-editor.vazio no CSS).
+        // textContent em vez de RichText.isEmpty: a pergunta aqui é só "tem
+        // texto visível?", e isEmpty faz um parse do documento inteiro para
+        // responder isso -- a cada tecla digitada.
         function marcarVazio() {
-            el.classList.toggle("vazio", RichText.isEmpty(el.innerHTML));
+            el.classList.toggle("vazio", el.textContent.trim() === "");
         }
 
         function tamanhoIndent() {
@@ -353,8 +372,16 @@
             e.preventDefault();
             const html = e.clipboardData ? e.clipboardData.getData("text/html") : "";
             const texto = (e.clipboardData ? e.clipboardData.getData("text/plain") : "") || "";
-            if (html) document.execCommand("insertHTML", false, RichText.sanitize(html));
-            else document.execCommand("insertText", false, texto);
+
+            // Colagem enorme (uma página inteira, por exemplo) entra como
+            // texto e cortada: a nota vai para o data.json, que é lido e
+            // reescrito inteiro a cada gravação.
+            const limpo = html ? RichText.sanitize(html) : "";
+            if (limpo && limpo.length <= MAX_COLAGEM) {
+                document.execCommand("insertHTML", false, limpo);
+            } else {
+                document.execCommand("insertText", false, texto.slice(0, MAX_COLAGEM));
+            }
         });
 
         // Arrastar texto de fora tem o mesmo problema da colagem. O drop de
@@ -422,9 +449,12 @@
             if (e.key === "Enter") e.stopPropagation();
         });
 
-        // Conteúdo que veio do disco pode ter sido gravado por uma versão
-        // com outra lista de tags permitidas.
-        el.innerHTML = RichText.sanitize(el.innerHTML);
+        // Conteúdo que veio do disco pode ter sido gravado por uma versão com
+        // outra lista de tags permitidas. Quem já montou o elemento com o
+        // conteúdo higienizado passa jaHigienizado e evita o segundo parse.
+        if (!opts.jaHigienizado && el.innerHTML) {
+            el.innerHTML = RichText.sanitize(el.innerHTML);
+        }
         marcarVazio();
 
         return {
@@ -532,11 +562,30 @@
             }
         }
 
+        // Coalesce por quadro: atualizar() faz uma consulta de estado por
+        // ferramenta (11 na barra cheia) e estava ligado ao input, ou seja,
+        // rodava inteiro a cada tecla. Digitar rápido não precisa de mais de
+        // uma atualização por quadro.
+        let quadroPendente = null;
+        function agendarAtualizar() {
+            if (quadroPendente) return;
+            // requestAnimationFrame não roda com a janela escondida (o Chromium
+            // pausa a pintura), e aí o estado dos botões ficaria preso no que
+            // era quando ela sumiu. O temporizador cobre esse caso.
+            const agendar = document.hidden
+                ? (fn) => setTimeout(fn, 16)
+                : (fn) => window.requestAnimationFrame(fn);
+            quadroPendente = agendar(() => {
+                quadroPendente = null;
+                atualizar();
+            });
+        }
+
         // Os ouvintes ficam no próprio editor (e não em document), então morrem
         // junto com o card quando o board é redesenhado -- selectionchange é
         // global e vazaria um ouvinte por card criado.
         for (const evento of ["keyup", "mouseup", "focus", "input"]) {
-            api.el.addEventListener(evento, atualizar);
+            api.el.addEventListener(evento, agendarAtualizar);
         }
         atualizar();
 
