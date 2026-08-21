@@ -1,12 +1,4 @@
-/* ═══════════════════════════  note_style.css  ═════════════════════════════
-   Nota aberta em janela própria ("modo bloco de notas"). Diferente do
-   widget, esta janela NÃO é transparente nem ancorada: é redimensionável,
-   aparece na barra de tarefas e o fundo é opaco, porque aqui o objetivo é
-   escrever texto longo e não ficar espiando a tela por baixo.
-
-   A moldura é frameless igual às outras janelas do app, então a barra de
-   título é desenhada aqui (#note-dragbar, com -webkit-app-region: drag).
-*/
+/* ═══════════════════════════  note_style.css  ═════════════════════════════ */
 
 * { box-sizing: border-box; }
 

@@ -29,6 +29,8 @@ input.addEventListener("keydown", (e) => {
 window.api.on("reset", reset);
 window.api.on("apply-settings", applySettings);
 
-window.api.invoke("get-data").then(loaded => applySettings(loaded.settings));
+window.api.invoke("get-data")
+    .then(loaded => applySettings(loaded.settings))
+    .catch(e => Log.error("[BOOT] get-data falhou, tema fica no padrão:", e.message));
 
 reset();

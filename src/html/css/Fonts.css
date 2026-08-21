@@ -1,42 +1,5 @@
-/* ══════════════════════════════  Fonts.css  ══════════════════════════════
-   As fontes embutidas no app. Arquivo próprio, e não dentro do Theme.css,
-   porque @font-face é regra e o Theme.css é só variável — mas precisa ser
-   carregado pelas cinco janelas do mesmo jeito, já que qualquer tema pode
-   pedir estas famílias.
+/* ══════════════════════════════  Fonts.css  ══════════════════════════════ */
 
-   Embutidas, e não puxadas do Google Fonts: o CSP das janelas é
-   font-src 'self', então fonte de fora simplesmente não carrega. Os
-   arquivos ficam em assets/fonts/, que o electron-builder já empacota
-   (ver "files" no package.json).
-
-   Só o subconjunto latin de cada uma. Todo acento do português — ã, ç, é,
-   õ, ú — mora no Latin-1, então o subconjunto estendido não faria falta e
-   dobraria o peso à toa.
-
-   Licença, com o texto completo ao lado dos arquivos em assets/fonts/:
-   Kalam é SIL OFL 1.1 (Indian Type Foundry), que permite redistribuir
-   dentro de um aplicativo.
-*/
-
-/* Manuscrita, para a interface. Dois arquivos porque o app usa negrito em
-   bastante lugar -- título de card, barra de título, tags, cronômetro -- e
-   sem um 700 de verdade o navegador engrossa o 400 por conta própria, o
-   que numa manuscrita borra o traço em vez de encorpar.
-
-   Os três override existem porque a Kalam é de origem devanágari, e fonte
-   devanágari reserva uma faixa vertical enorme para os sinais que ficam
-   acima e abaixo da linha. A métrica declarada é ascendente 106,3% mais
-   descendente 53,1%, ou seja line-height:normal de 1,594em -- 20% mais alto
-   que os 1,330em da Segoe UI, que é a fonte dos outros temas. Na prática
-   isso esparramava as linhas do app inteiro.
-
-   Os valores abaixo não são chute: medindo a caixa de cada glifo latino nos
-   dois arquivos, o que de fato se usa vai de +101,5% (o À do negrito, a
-   capital acentuada mais alta) até -25,9% (o g do negrito). Os 104% e 30%
-   cobrem isso com folga e devolvem a altura de linha para 1,34em, quase
-   exatamente a da Segoe UI. Mexer nesses números para menos começa a cortar
-   acento de maiúscula -- Ã, É e À são os primeiros a sofrer, o que em
-   português aparece toda hora. */
 @font-face {
   font-family: 'Kalam';
   font-style: normal;
@@ -58,20 +21,6 @@
   src: url("../../../assets/fonts/kalam-700-latin.woff2") format("woff2");
 }
 
-/* Botão, campo e select NÃO herdam font-family: o navegador impõe a fonte
-   padrão de controle do sistema, e por isso ficavam de fora da fonte do
-   tema. Boa parte das regras já corrigia isso uma a uma com
-   "font-family: inherit", mas quem esquecesse numa regra nova reabria o
-   buraco -- foi o que aconteceu com as abas e o botão de nova entrada, que
-   continuaram em Segoe UI enquanto o resto virava manuscrito.
-
-   Fica aqui, e não no Style.css, por dois motivos: é assunto de fonte, e
-   este é um dos dois arquivos que as cinco janelas carregam (o outro é o
-   Theme.css, que é só variável).
-
-   Seletor de elemento tem especificidade menor que qualquer classe ou id,
-   então isto não atropela quem escolhe fonte de propósito -- .timer-display
-   e #timer-badge continuam monoespaçados. */
 button,
 input,
 select,

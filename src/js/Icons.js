@@ -1,9 +1,4 @@
-/* ─────────────────────────────  Icons.js  ─────────────────────────────────
-   Ícones em SVG (conjunto Lucide, ISC license — https://lucide.dev) no lugar
-   de emoji, pra dar uma cara mais profissional. `stroke="currentColor"`
-   herda a cor do elemento, então os ícones já respeitam os 5 temas sem
-   precisar de CSS extra. Mesmo padrão UMD do EventUtils.js/TagUtils.js.
-*/
+/* ─────────────────────────────  Icons.js  ───────────────────────────────── */
 (function (factory) {
     if (typeof module === "object" && module.exports) {
         module.exports = factory();
@@ -11,8 +6,6 @@
         window.Icons = factory();
     }
 })(function () {
-    // Miolo de cada ícone (sem a tag <svg> em volta, montada em svg() abaixo)
-    // -- só os paths/shapes internos, exatamente como vêm do Lucide.
     const ICONS = {
         x: '<path d="M18 6 6 18"/><path d="m6 6 12 12"/>',
         "chevron-down": '<path d="m6 9 6 6 6-6"/>',
@@ -69,11 +62,6 @@
         code: '<path d="m16 18 6-6-6-6"/><path d="m8 6-6 6 6 6"/>'
     };
 
-    // play/pause ficam melhor com preenchimento sólido nesse tamanho pequeno
-    // (contorno fino de triângulo/barra quase some) -- são formas fechadas,
-    // preenchem limpo. "check" é só uma linha aberta (sem fechar o path),
-    // preencher deixaria um triângulo feio em vez do "v" -- fica só contorno,
-    // como os outros ícones no estilo Lucide padrão.
     const FILLED = new Set(["play", "pause"]);
 
     function svg(name, size) {

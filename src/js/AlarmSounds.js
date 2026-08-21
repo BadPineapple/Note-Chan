@@ -1,14 +1,4 @@
-/* ──────────────────────────────  AlarmSounds.js  ──────────────────────────
-   Melodias do alarme sintetizadas na hora via Web Audio API — sem nenhum
-   arquivo de áudio externo (o app não depende de internet nem de assets
-   binários pra isso). Cada som é só uma sequência de notas [frequência,
-   duração_ms, pausa_ms] tocadas em onda senoidal suave, em loop até algo
-   chamar a função de parar que play() devolve.
-
-   Só funciona em renderer (usa AudioContext do navegador) — por isso não
-   segue o padrão require()-friendly do EventUtils/TagUtils; é só
-   window.AlarmSounds mesmo.
-*/
+/* ──────────────────────────────  AlarmSounds.js  ────────────────────────── */
 (function () {
     const SOUNDS = {
         sininho: {

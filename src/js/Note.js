@@ -1,13 +1,4 @@
-/* ─────────────────────────────────  Note.js  ──────────────────────────────
-   Renderer da nota em janela própria ("modo bloco de notas"). Qual nota esta
-   janela edita vem na query da URL (ver openNoteWindow em Main.js) -- o
-   renderer roda em sandbox e não tem como descobrir isso sozinho.
-
-   O dono do conteúdo aqui é esta janela enquanto ela está em uso: ela grava
-   com atraso curto e o main repassa pro widget. No sentido contrário, uma
-   edição feita no widget só é aplicada aqui se ninguém estiver digitando
-   (ver "note-updated" no fim do arquivo).
-*/
+/* ─────────────────────────────────  Note.js  ──────────────────────────────*/
 
 Log.iniciar("nota");
 
@@ -26,8 +17,6 @@ let loaded = false;
 
 /* ══════════════════════════════  APRESENTAÇÃO  ═══════════════════════════ */
 
-// Guardado porque o editor lê a configuração ao vivo (indentação e atalhos
-// de formatação), e ela pode mudar depois que esta janela já abriu.
 let settingsAtuais = null;
 
 function applySettings(settings) {
@@ -38,8 +27,6 @@ function applySettings(settings) {
 }
 
 function refreshCounts() {
-    // Contagem sobre o texto legível: com marcação no meio, "<b>oi</b>"
-    // contaria 11 caracteres em vez de 2.
     const text = RichText.toPlainText(contentEl.innerHTML);
     const palavras = text.trim() ? text.trim().split(/\s+/).length : 0;
     const linhas = text ? text.split("\n").length : 0;
@@ -96,14 +83,11 @@ const editor = RichEditor.attach(contentEl, {
     atalhos: () => settingsAtuais?.editorShortcuts
 });
 
-// Barra cheia: aqui cabem alinhamento, bloco de código e tamanho de fonte,
-// que no card do widget não teriam espaço nem sentido (ver BARRA_COMPLETA).
 RichEditor.montarBarra(document.getElementById("note-toolbar"), editor, RichEditor.BARRA_COMPLETA, {
     tamanhoIcone: 15,
     atalhos: () => settingsAtuais?.editorShortcuts
 });
 
-// Enter no título desce pro corpo, em vez de não fazer nada.
 titleEl.addEventListener("keydown", (e) => {
     if (e.key !== "Enter") return;
     e.preventDefault();
@@ -126,7 +110,6 @@ document.addEventListener("keydown", (e) => {
     if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "s") { e.preventDefault(); saveNow(); }
 });
 
-// Fechar pelo X da barra de tarefas / Alt+F4 não passa pelo botão daqui.
 window.addEventListener("beforeunload", () => { if (saveTimer) saveNow(); });
 
 /* ═════════════════════════════  SINCRONIZAÇÃO  ═══════════════════════════ */
@@ -141,20 +124,18 @@ function applyNote(note) {
 
 window.api.on("apply-settings", applySettings);
 
-// A mesma nota foi editada no widget. Só aplica se ninguém estiver mexendo
-// aqui: sobrescrever o campo no meio de uma frase perderia o que está sendo
-// digitado, e esta janela é a que tem a versão mais nova nesse caso.
 window.api.on("note-updated", (note) => {
     if (!note || note.id !== noteId) return;
     if (saveTimer || document.hasFocus()) return;
     applyNote(note);
 });
 
-window.api.invoke("get-data").then(dados => applySettings(dados.settings));
+window.api.invoke("get-data")
+    .then(dados => applySettings(dados.settings))
+    .catch(e => Log.error("[BOOT] get-data falhou, tema fica no padrão:", e.message));
 
 window.api.invoke("note-data", noteId).then(note => {
     if (!note) {
-        // Nota apagada entre o pedido de abrir e o carregamento da janela.
         window.api.send("note-close");
         return;
     }
@@ -162,4 +143,7 @@ window.api.invoke("note-data", noteId).then(note => {
     loaded = true;
     marcarSalvo(note.updatedAt);
     contentEl.focus();
+}).catch(e => {
+    Log.error("[BOOT] note-data falhou:", e.message);
+    titleEl.placeholder = "Não foi possível abrir esta nota.";
 });

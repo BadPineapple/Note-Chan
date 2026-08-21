@@ -1,28 +1,16 @@
 /* ──────────────────────────────  Settings.js  ────────────────────────────── */
-// Renderer da janela de Configurações.
 
 Log.iniciar("configuracoes");
 
 let settings = { theme: "gold", transparency: 60, shortcuts: {}, alarm: { enabled: true, volume: 70, sound: "sininho" } };
 let recordingAction = null;
-
-// Enquanto o get-data do boot não voltar, `birthdays` e `tags` ainda são
-// arrays vazios. Um save disparado nesse intervalo mandaria a lista vazia
-// pro main, que trata item ausente como EXCLUÍDO (ver mergeMainOwnedList em
-// Main.js) -- caminho real: bandeja -> "Novo aniversariante" com esta janela
-// fechada, que abre a janela e manda o quick-create logo depois do
-// did-finish-load, sem garantia de que o get-data já respondeu.
 let booted = false;
 
 const themeButtons   = document.querySelectorAll(".theme-swatch");
 const slider         = document.getElementById("transparency-slider");
 const sliderValue    = document.getElementById("transparency-value");
 const hint           = document.getElementById("shortcut-hint");
-// Dois grupos de atalho, gravados em campos diferentes das configurações:
-// os globais vão para o sistema (globalShortcut em Main.js); os do editor
-// são tratados dentro do contenteditable e por isso podem repetir
-// combinações que outros programas já usam. A mecânica de gravar é a mesma,
-// só muda onde o valor é salvo.
+
 const GRUPOS_ATALHO = {
     shortcuts: {
         toggleWidget: document.getElementById("rec-toggleWidget"),
@@ -38,8 +26,8 @@ const GRUPOS_ATALHO = {
     }
 };
 
-const recorders = {};    // ação -> botão
-const grupoDaAcao = {};  // ação -> em qual campo das configurações ela mora
+const recorders = {};    
+const grupoDaAcao = {}; 
 for (const [grupo, mapa] of Object.entries(GRUPOS_ATALHO)) {
     for (const [acao, btn] of Object.entries(mapa)) {
         recorders[acao] = btn;
@@ -66,11 +54,6 @@ function saveSettings(partial) {
     window.api.send("save-settings", partial);
 }
 
-// Cada save volta como broadcast apply-settings (o main avisa todas as
-// janelas), inclusive esta. Reaplicar um controle que o usuário está mexendo
-// AGORA faz o slider pular pro valor de um instante atrás no meio do
-// arrasto -- por isso o que está em foco fica de fora. A lista de sons, pelo
-// mesmo motivo, só é redesenhada quando o som selecionado muda de verdade.
 let renderedAlarmSound = null;
 
 function applyToUI(s) {
@@ -132,9 +115,6 @@ alarmVolumeSlider.addEventListener("input", () => {
 
 let stopAlarmPreview = null;
 
-// AlarmSounds.js é compartilhado com o popup de alarme (que não carrega
-// Icons.js), então o label lá fica em texto puro -- o ícone por som mora só
-// aqui, que é quem efetivamente usa innerHTML pra desenhar a lista.
 const ALARM_SOUND_ICONS = { sininho: "bell", caixinha: "music", passarinho: "bird", classico: "alarm-clock" };
 
 function renderAlarmSoundList() {
@@ -240,7 +220,7 @@ window.addEventListener("keydown", (e) => {
     }
 
     const parts = eventToAccelerator(e);
-    if (!parts) return; // só modificador sozinho, espera a tecla principal
+    if (!parts) return; 
 
     if (parts.length < 2) {
         hint.textContent = "Use pelo menos um modificador (Ctrl, Alt ou Shift).";
@@ -254,23 +234,11 @@ window.addEventListener("keydown", (e) => {
     stopRecording(false);
     hint.textContent = "Clique num atalho e pressione a combinação desejada (precisa de Ctrl, Alt ou Shift).";
     hint.classList.remove("error");
-    // Vai para settings.shortcuts ou settings.editorShortcuts, conforme o
-    // grupo a que a ação pertence (ver GRUPOS_ATALHO).
     saveSettings({ [grupoDaAcao[action]]: { [action]: accelerator } });
 });
 
 /* ═══════════  CARD RECÉM-CRIADO QUE NINGUÉM CHEGOU A PREENCHER  ═══════════ */
-// "+ Novo aniversariante" e "+ Nova tag" já criam o card com um nome padrão.
-// Clicar algumas vezes sem preencher deixava uma pilha de "Novo
-// aniversariante"/"Nova tag" sem conteúdo real. O card que nasceu e ninguém
-// tocou some sozinho em quatro momentos: quando o foco sai dele, quando
-// outro é criado, ao trocar de aba e ao fechar a janela.
-//
-// "Tocou" é comparação com o estado de criação (nome padrão, categoria
-// vazia, data/cor iguais às do nascimento) em vez de uma marcação de
-// "sujo" -- assim não depende de lembrar de marcar em cada campo novo que
-// venha a existir. Só um card por tipo pode estar nesse estado por vez:
-// criar outro descarta o anterior.
+
 const NEW_BIRTHDAY_NAME = "Novo aniversariante";
 const NEW_TAG_NAME = "Nova tag";
 
@@ -285,7 +253,7 @@ function discardPristineBirthday() {
 
     const b = birthdays.find(x => x.id === id);
     if (!b) return;
-    if (b.name !== NEW_BIRTHDAY_NAME || b.category || b.date !== date) return; // foi preenchido
+    if (b.name !== NEW_BIRTHDAY_NAME || b.category || b.date !== date) return; 
 
     birthdays = birthdays.filter(x => x.id !== id);
     bdayExpanded.delete(id);
@@ -302,7 +270,7 @@ function discardPristineTag() {
 
     const t = tags.find(x => x.id === id);
     if (!t) return;
-    if (t.name !== NEW_TAG_NAME || t.color !== color) return; // foi preenchido
+    if (t.name !== NEW_TAG_NAME || t.color !== color) return; 
 
     tags = tags.filter(x => x.id !== id);
     scheduleTagSave();
@@ -314,7 +282,6 @@ function discardPristine() {
     discardPristineTag();
 }
 
-// Fechar a janela não espera o debounce de 400 ms dos saves — manda na hora.
 function flushPendingSaves() {
     if (bdaySaveTimer) { clearTimeout(bdaySaveTimer); bdaySaveTimer = null; window.api.send("save-data", { birthdays }); }
     if (tagSaveTimer) { clearTimeout(tagSaveTimer); tagSaveTimer = null; window.api.send("save-data", { tags }); }
@@ -326,10 +293,6 @@ window.addEventListener("beforeunload", () => {
 });
 
 /* ═════════════════════════════  BARRA DE TÍTULO  ══════════════════════════ */
-// A janela é frameless (ver createSettingsWindow em Main.js), então minimizar
-// e fechar são botões daqui. Fechar passa pelo mesmo caminho do X nativo de
-// antes -- o main chama close() na janela, então o beforeunload lá em cima
-// continua rodando e descartando o que ficou pela metade.
 
 document.getElementById("settings-minbtn").addEventListener("click", () => {
     window.api.send("settings-minimize");
@@ -360,12 +323,9 @@ const bdayExpanded = new Set();
 const bdayBoard = document.getElementById("bday-board");
 const bdayNewBtn = document.getElementById("bday-new-btn");
 
-// Texto puro (usado no <select>, que não renderiza HTML/ícone dentro de
-// <option>) -- BIRTHDAY_CATEGORY_ICONS é só pro badge, que aceita innerHTML.
 const BIRTHDAY_CATEGORY_LABELS = { "": "Sem categoria", familia: "Família", amigo: "Amigo", trabalho: "Trabalho" };
 const BIRTHDAY_CATEGORY_ICONS = { familia: "users", amigo: "user", trabalho: "briefcase" };
 
-// Compartilhadas com o widget — ver UiUtils.js.
 const { newId, escapeHtml, formatBR, armDeleteConfirm, clickStartedInside } = UiUtils;
 
 function now() { return Date.now(); }
@@ -382,7 +342,7 @@ function birthdayBadge(dateStr) {
 
 let bdaySaveTimer = null;
 function scheduleBdaySave() {
-    if (!booted) return; // ver comentário de `booted` no topo do arquivo
+    if (!booted) return; 
     clearTimeout(bdaySaveTimer);
     bdaySaveTimer = setTimeout(() => window.api.send("save-data", { birthdays }), 400);
 }
@@ -452,9 +412,6 @@ function birthdayCardNode(birthday) {
     }
     refreshPreview();
 
-    // Foco saiu do card inteiro e ele continua exatamente como nasceu -> some
-    // sozinho (ver "CARD RECÉM-CRIADO" acima). clickStartedInside evita
-    // descartar no mousedown de um clique que é dentro do próprio card.
     card.addEventListener("focusout", () => {
         setTimeout(() => {
             if (pristine.birthdayId !== birthday.id) return;
@@ -465,7 +422,7 @@ function birthdayCardNode(birthday) {
     });
 
     card.querySelector(".card-header").addEventListener("click", (e) => {
-        if (e.detail > 1) return; // 2º clique do duplo-clique — quem trata é o dblclick
+        if (e.detail > 1) return; 
         card.classList.toggle("expanded");
         if (card.classList.contains("expanded")) bdayExpanded.add(birthday.id);
         else bdayExpanded.delete(birthday.id);
@@ -475,8 +432,6 @@ function birthdayCardNode(birthday) {
     RichEditor.ligarSetas(title);
     title.addEventListener("dblclick", (e) => {
         e.stopPropagation();
-        // O 1º clique do duplo-clique pode ter recolhido o card. Reabre antes
-        // de editar: quem dá dois cliques no nome quer renomear, não fechar.
         if (!card.classList.contains("expanded")) {
             card.classList.add("expanded");
             bdayExpanded.add(birthday.id);
@@ -553,8 +508,6 @@ function createBirthday() {
 
 bdayNewBtn.addEventListener("click", createBirthday);
 
-// Criar antes do boot terminar montaria o aniversariante sobre o array vazio
-// e ele sumiria quando o get-data chegasse -- guarda e executa depois.
 let pendingQuickCreate = false;
 
 window.api.on("quick-create", (type) => {
@@ -609,8 +562,6 @@ function tagCardNode(tag) {
         </div>
     `;
 
-    // Mesma regra dos aniversariantes: tag que nasceu e ninguém preencheu
-    // some quando o foco sai dela (ver "CARD RECÉM-CRIADO" acima).
     card.addEventListener("focusout", () => {
         setTimeout(() => {
             if (pristine.tagId !== tag.id) return;
@@ -622,10 +573,6 @@ function tagCardNode(tag) {
 
     const nameEl = card.querySelector(".tag-name");
     RichEditor.ligarSetas(nameEl);
-    // Um clique só (não dois) -- diferente do título de nota/lista/evento, a
-    // tag não tem nada mais reagindo ao clique aqui (não expande/recolhe
-    // nada), então dblclick só criava uma pegadinha: o cursor já diz "text"
-    // mas só entrava em edição no segundo clique.
     nameEl.addEventListener("click", (e) => {
         e.stopPropagation();
         if (nameEl.isContentEditable) return; // já editando -- deixa o clique só posicionar o cursor
@@ -739,8 +686,16 @@ googleConnectBtn.addEventListener("click", async () => {
 });
 
 googleDisconnectBtn.addEventListener("click", async () => {
-    const status = await window.api.invoke("google-disconnect");
-    applyGoogleStatus({ configured: true, ...status });
+    googleDisconnectBtn.disabled = true;
+    try {
+        const status = await window.api.invoke("google-disconnect");
+        applyGoogleStatus({ configured: true, ...status });
+    } catch (e) {
+        googleStatusText.textContent = "Falha ao desconectar: " + e.message;
+        Log.error("[GOOGLE] Desconectar falhou:", e.message);
+    } finally {
+        googleDisconnectBtn.disabled = false;
+    }
 });
 
 googleSyncBtn.addEventListener("click", async () => {
@@ -751,25 +706,26 @@ googleSyncBtn.addEventListener("click", async () => {
         googleSyncHint.textContent = result.ok
             ? formatSyncTime(Date.now())
             : "Falha na sincronização: " + (result.error || "erro desconhecido");
+    } catch (e) {
+        googleSyncHint.textContent = "Falha na sincronização: " + e.message;
+        Log.error("[GOOGLE] Sincronizar agora falhou:", e.message);
     } finally {
         googleSyncBtn.disabled = false;
         googleSyncBtn.innerHTML = `${Icons.svg("refresh-cw", 14)} Sincronizar agora`;
     }
 });
 
-window.api.invoke("google-auth-status").then(applyGoogleStatus);
+window.api.invoke("google-auth-status")
+    .then(applyGoogleStatus)
+    .catch(e => {
+        googleStatusText.textContent = "Não foi possível ler o estado da conexão.";
+        Log.error("[GOOGLE] google-auth-status falhou:", e.message);
+    });
 
 /* ══════════════════════════════  SINCRONIZAÇÃO  ═══════════════════════════ */
 
 window.api.on("apply-settings", (s) => { if (!recordingAction) applyToUI(s); });
 
-// Sincronização com o Google Agenda alterou os aniversariantes (criou o
-// vínculo googleEventId ou removeu um cancelado do lado de lá) -- ver Main.js.
-// Igual ao widget: mescla por id preferindo o que foi editado aqui mais
-// recentemente, e espera o foco sair antes de redesenhar, senão o card em
-// edição é destruído no meio da digitação. Os campos de propriedade do main
-// (googleEventId etc.) não se perdem ao manter o objeto local -- o próprio
-// main os repõe no save (ver mergeMainOwnedList em Main.js).
 let pendingBdayUpdate = null;
 
 function isEditingBdayBoard() {
@@ -815,15 +771,14 @@ window.api.invoke("get-data").then(loaded => {
         setSettingsTab("aniversarios");
         createBirthday();
     }
-});
+}).catch(e => Log.error("[BOOT] get-data falhou, configurações não carregaram:", e.message));
 
 window.api.invoke("get-app-version").then(version => {
     document.getElementById("app-version").textContent = `v${version}`;
     document.getElementById("app-version-inline").textContent = `v${version}`;
-});
+}).catch(e => Log.error("[BOOT] get-app-version falhou:", e.message));
 
 /* ══════════════════════════════  ATUALIZAÇÕES  ════════════════════════════ */
-// Só consulta e avisa; quem baixa é o usuário (ver UpdateChecker.js).
 
 const updateStatus   = document.getElementById("update-status");
 const updateHint     = document.getElementById("update-hint");
@@ -862,6 +817,9 @@ updateCheckBtn.addEventListener("click", async () => {
     updateHint.textContent = "Consultando os releases no GitHub...";
     try {
         applyUpdateResult(await window.api.invoke("check-update"));
+    } catch (e) {
+        applyUpdateResult({ ok: false, error: e.message, current: "" });
+        Log.error("[UPDATE] Verificação falhou:", e.message);
     } finally {
         updateCheckBtn.disabled = false;
         updateCheckBtn.textContent = "Verificar";

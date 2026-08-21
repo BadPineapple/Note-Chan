@@ -1,7 +1,4 @@
-/* ═══════════════════════════  settings_style.css  ════════════════════════
-   Janela normal (com moldura), então usa fundo quase opaco — a
-   transparência configurável é só pro widget flutuante.
-*/
+/* ═══════════════════════════  settings_style.css  ════════════════════════ */
 
 html, body {
   margin: 0;
@@ -14,26 +11,12 @@ html, body {
 
 *, *::before, *::after { box-sizing: border-box; }
 
-/* Style.css (compartilhado com o widget) põe overflow:hidden em html/body —
-   aqui o conteúdo pode crescer (mais temas, atalhos, footer...), então cada
-   aba rola por conta própria em vez de cortar o que não cabe nos 620px
-   fixos da janela.
-
-   Sem padding próprio de propósito, pelo mesmo motivo do #panel no
-   Style.css: a barra de título precisa encostar nas três bordas de cima,
-   senão sobra uma faixa da cor de fundo em volta dela. Quem cuida do
-   respiro lateral são as abas e os painéis, cada um com o seu. */
 #settings-container {
   height: 100vh;
   display: flex;
   flex-direction: column;
   padding: 0;
   box-sizing: border-box;
-  /* Entrada da janela. Roda no primeiro quadro visível porque o Main.js só
-     mostra a janela no ready-to-show -- antes disso ela abria já pintada e
-     parada, o que dava um "tranco" comparado às outras janelas do app.
-     translateY negativo (e não positivo) de propósito: descer empurraria a
-     borda de baixo pra fora e o body ganharia barra de rolagem. */
   animation: settings-entrada 0.22s ease both;
 }
 
@@ -47,10 +30,7 @@ section {
 }
 
 /* ────────────────────────  Barra de título do settings  ──────────────────── */
-/* Mesma barra da janela de nota (#note-dragbar em note_style.css): esta
-   janela é frameless, então quem desenha o título e os botões é o HTML.
-   O padding-right abre espaço fixo para os dois botões, que ficam ancorados
-   à direita fora do fluxo. */
+
 #settings-dragbar {
   position: relative;
   flex: 0 0 auto;
@@ -84,7 +64,6 @@ section {
   font-size: 0.9em;
 }
 
-/* no-drag, senão arrastar em cima do botão moveria a janela em vez de clicar */
 #settings-window-btns {
   position: absolute;
   top: 0;
@@ -95,7 +74,6 @@ section {
   -webkit-app-region: no-drag;
 }
 
-/* .window-btn vem do Style.css, que esta janela já carrega. */
 #settings-closebtn:hover { background: rgb(var(--danger-rgb, 255 128 128) / 0.25); }
 
 /* ────────────────────────────  Abas do settings  ─────────────────────────── */

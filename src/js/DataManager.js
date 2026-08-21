@@ -1,6 +1,4 @@
 /* ───────────────────────────  DataManager.js  ───────────────────────────── */
-// Persistência local das notas e listas. Nenhuma chamada de rede — tudo em
-// userData/data.json.
 const fs = require("fs");
 const path = require("path");
 const PATHS = require("./Paths");
@@ -9,11 +7,6 @@ const RichText = require("./RichText");
 
 const MAX_DAILY_BACKUPS = 14;
 
-// 1 -> 2: o conteúdo da nota era texto puro num <textarea> e passou a ser
-// HTML, porque negrito, alinhamento e tamanho de fonte não cabem em texto
-// cru (ver RichText.js). A conversão é sem perda: cada linha vira uma <div>
-// e os caracteres < > & são escapados, então uma nota que falava de HTML
-// continua mostrando as tags como texto em vez de interpretá-las.
 const SCHEMA_VERSION = 2;
 
 function migrarNotasParaHtml(notas) {
@@ -29,8 +22,6 @@ function migrarNotasParaHtml(notas) {
 
 function defaultData() {
     return {
-        // Versão do FORMATO do arquivo (não a do app). Sobe quando um campo
-        // muda de significado e exige conversão -- ver migrarNotasParaHtml.
         schemaVersion: SCHEMA_VERSION,
         notes: [],
         lists: [],
@@ -38,9 +29,9 @@ function defaultData() {
         birthdays: [],
         tags: [],
         googleSync: {
-            syncToken: null,       // syncToken incremental da Calendar API (null = próxima sync é completa)
+            syncToken: null,       
             lastSyncAt: null,
-            pendingDeletes: []     // ids de evento do Google a excluir na próxima sync (ver Main.js)
+            pendingDeletes: []   
         },
         tamagotchi: {
             level: 1,
@@ -49,35 +40,23 @@ function defaultData() {
             fome: 100,
             carencia: 100,
             higiene: 100,
-            lastUpdate: Date.now(),         // referência do decaimento de fome/higiene (tempo puro)
-            lastInteraction: Date.now(),    // última interação de verdade do usuário (uso do app)
-            lastCarenciaUpdate: Date.now(), // referência do decaimento de carência (ver applyTamaDecay)
-            lastLowNotified: {}             // { fome, higiene, carencia, vida } -> timestamp do último aviso (main)
+            lastUpdate: Date.now(),        
+            lastInteraction: Date.now(),    
+            lastCarenciaUpdate: Date.now(), 
+            lastLowNotified: {}            
         },
         widget: { collapsed: true, width: 320, height: 480, activeTab: "notas" },
-        // Tamanho da nota em janela ("modo bloco de notas") — uma preferência
-        // só, compartilhada por todas as janelas de nota (ver Main.js).
         noteWindow: { width: 520, height: 460 },
-        // Verificação de versão (ver UpdateChecker.js): quando foi a última
-        // consulta e de qual versão nova o usuário já foi avisado.
         updateCheck: { lastCheckAt: null, notifiedVersion: null },
         settings: {
             theme: "gold",
             transparency: 60,
-            // ATALHOS GLOBAIS: registrados no sistema (globalShortcut), valem
-            // com o Note-Chan em segundo plano.
             shortcuts: {
                 toggleWidget: "Control+Alt+N",
                 quickCapture: "Control+Alt+Q",
                 newNoteWindow: "Control+Alt+J"
             },
-            // Preferências do editor de nota (ver RichEditor.js). fontSize em
-            // pixel; indentSize é quantos espaços o TAB insere fora de lista.
             editor: { fontSize: 15, indentSize: 4 },
-            // ATALHOS DO EDITOR: tratados dentro do contenteditable, NÃO
-            // registrados no sistema. Ctrl+B em globalShortcut roubaria o
-            // negrito de todo outro programa aberto no Windows -- por isso
-            // moram separados de settings.shortcuts.
             editorShortcuts: {
                 negrito: "Control+B",
                 italico: "Control+I",
@@ -95,9 +74,6 @@ function summarize(data) {
         + `${data.events?.length ?? 0} eventos, ${data.birthdays?.length ?? 0} aniversariantes`;
 }
 
-// Merge raso quebraria se um data.json antigo não tiver um campo novo
-// dentro de widget/settings/settings.shortcuts (ex.: depois de uma
-// atualização) — por isso esses três níveis são mesclados à parte.
 function loadData() {
     const defaults = defaultData();
     try {
@@ -112,11 +88,6 @@ function loadData() {
             tamagotchi: {
                 ...defaults.tamagotchi,
                 ...parsed.tamagotchi,
-                // Versão anterior não tinha lastCarenciaUpdate -- a carência
-                // era medida direto de lastInteraction. Herdar dela mantém o
-                // decaimento contínuo; sem isso o padrão (agora) entraria no
-                // lugar e o tempo com o app fechado seria perdoado, ao
-                // contrário do que acontece com fome/higiene.
                 lastCarenciaUpdate: parsed.tamagotchi?.lastCarenciaUpdate
                     ?? parsed.tamagotchi?.lastInteraction
                     ?? defaults.tamagotchi.lastCarenciaUpdate
@@ -130,9 +101,6 @@ function loadData() {
                 editorShortcuts: { ...defaults.settings.editorShortcuts, ...parsed.settings?.editorShortcuts },
                 alarm: {
                     ...defaults.settings.alarm,
-                    // migra o antigo notificationsEnabled se essa versão ainda
-                    // não tinha o bloco "alarm" — preserva a preferência do
-                    // usuário em vez de resetar pro padrão.
                     ...(parsed.settings?.notificationsEnabled !== undefined
                         ? { enabled: parsed.settings.notificationsEnabled }
                         : {}),
@@ -142,9 +110,6 @@ function loadData() {
         };
         delete merged.settings.notificationsEnabled;
 
-        // Arquivo de antes da versão 2 guarda nota como texto puro. Converte
-        // uma vez só; o próximo save já grava no formato novo. O .bak e os
-        // snapshots diários seguram o formato antigo caso precise voltar.
         if ((parsed.schemaVersion || 1) < 2) {
             const n = migrarNotasParaHtml(merged.notes);
             if (n) log("[DATA] Migração de formato: " + n + " nota(s) de texto puro para HTML.");
@@ -163,10 +128,6 @@ function loadData() {
     }
 }
 
-// Mantém uma cópia do data.json anterior antes de sobrescrever — rede de
-// segurança mínima caso uma gravação saia corrompida ou incompleta por
-// qualquer motivo. Só guarda 1 nível (o penúltimo estado), não é
-// versionamento completo, mas cobre o caso mais comum de perda de dados.
 function backupPrevious() {
     try {
         if (fs.existsSync(PATHS.data)) {
@@ -177,18 +138,12 @@ function backupPrevious() {
     }
 }
 
-// Grava em arquivo temporário e renomeia — evita corromper data.json se o
-// processo morrer no meio da escrita.
 function writeAtomic(payload) {
     const tmp = `${PATHS.data}.tmp`;
     fs.writeFileSync(tmp, JSON.stringify(payload, null, 2), "utf8");
     fs.renameSync(tmp, PATHS.data);
 }
 
-// Snapshot datado (um por dia, o primeiro salvamento do dia grava e os
-// seguintes só sobrescrevem o .bak de cima) — histórico de verdade além do
-// "1 passo atrás" do backupPrevious(), pra recuperar de uma perda notada só
-// dias depois. Rotaciona mantendo só os MAX_DAILY_BACKUPS mais recentes.
 function dailyBackupIfNeeded(data) {
     try {
         const today = new Date().toISOString().slice(0, 10); // YYYY-MM-DD
@@ -223,11 +178,6 @@ async function writeAsync(data) {
     }
 }
 
-// Duas gravações sobrepostas disputariam o MESMO data.json.tmp (uma renomeia
-// o arquivo que a outra ainda está escrevendo). O debounce do Main.js cobre
-// rajadas curtas, não uma gravação lenta que ainda não terminou — então a
-// fila aqui é a garantia de verdade. writeAsync nunca rejeita, então a
-// corrente não quebra numa falha isolada.
 let writeQueue = Promise.resolve();
 
 function saveData(data) {

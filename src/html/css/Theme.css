@@ -1,75 +1,24 @@
-/* ═══════════════════════════════  Theme.css  ═════════════════════════════
-   Só variáveis — nenhuma regra visual mora aqui. Compartilhado pelas 5
-   janelas (widget, configurações, captura rápida, bloco de notas, alarme)
-   via <link>, assim trocar de tema em uma reflete nas outras.
-
-   São dois grupos de variáveis:
-
-   1) Paleta (--bg-rgb, --accent-rgb, ...). --surface-rgb é a cor "neutra"
-      usada em overlays (cartões, hover, inputs): branco nos temas escuros
-      (clareia a superfície), preto nos temas claros (escurece pra manter
-      contraste) — as regras nos outros arquivos usam sempre a mesma
-      opacidade, só a base muda por tema.
-
-   2) Forma (--nc-fonte-*, --nc-raio-*, --nc-traco-*, --nc-sombra-card).
-      Fonte, arredondamento, espessura de contorno e sombra dos cartões.
-      Os padrões abaixo mantêm a aparência que o app já tinha (a única
-      diferença é que botões e campos, que variavam entre 5px, 6px e 7px
-      de raio, agora usam o mesmo valor), então tema que não mexer em nada
-      continua igual; tema que quiser visual próprio muda só o que precisa.
-
-   color-scheme diz ao Chromium se o "chrome" nativo dos controles de
-   formulário (o popup do <select>, o calendário do <input type=date>, a
-   barra de rolagem) deve ser claro ou escuro — sem isso, o popup do select
-   sempre vem branco, o que fica ilegível com texto claro por cima nos temas
-   escuros.
-
-   Ordem importa: :root e [data-theme="x"] têm a MESMA especificidade, então
-   o bloco de padrões precisa vir antes dos temas pra poder ser sobrescrito.
-*/
+/* ═══════════════════════════════  Theme.css  ═════════════════════════════ */
 
 /* ───────────────────────────  Padrões de forma  ─────────────────────────── */
 :root {
   --nc-fonte-ui: 'Segoe UI', Tahoma, sans-serif;
   --nc-fonte-mono: 'Consolas', 'Courier New', monospace;
 
-  /* Fonte de exibição, e só onde o texto é rótulo curto: barra de título,
-     título de card e título da janela de nota. Cai na fonte da interface por
-     padrão, então tema que não pedir nada continua com uma fonte só. Serve
-     pra tema usar display bolhuda/manuscrita no título sem estragar a
-     leitura de nota, lista e evento. */
   --nc-fonte-titulo: var(--nc-fonte-ui);
 
-  /* painel/janela · caixa de diálogo (alarme) · cartão · botão-campo-aba ·
-     pílula de tag.
-
-     Fora o do painel, todos aceitam a forma longa do border-radius -- do tipo
-     "15px 21px 13px 19px / 19px 13px 21px 15px", com um raio diferente por
-     canto e outro para o eixo vertical. É assim que um tema faz canto torto,
-     sem precisar de regra nova em lugar nenhum.
-
-     O do painel é a exceção e precisa continuar com um valor só: o #dragbar
-     aplica esse token em border-top-left-radius/-top-right-radius, e
-     propriedade de canto isolado aceita no máximo dois valores -- com mais
-     que isso a declaração é descartada e o canto vira reto. */
   --nc-raio-painel: 12px;
   --nc-raio-dialogo: 22px;
   --nc-raio-card: 8px;
   --nc-raio-ctrl: 7px;
   --nc-raio-pilula: 10px;
 
-  /* Contorno de cartão, item de lista e campo. Por padrão é a mesma cor
-     neutra dos overlays, quase imperceptível — um tema pode trocar por uma
-     cor de traço de verdade e engrossar. */
   --nc-traco-rgb: var(--surface-rgb, 255 255 255);
   --nc-traco-alpha: 0.1;
   --nc-traco-w: 1px;
 
   --nc-sombra-card: none;
 
-  /* Textura repetida por cima do fundo das janelas (grão, papel, o que o tema
-     pedir). Entra como background-image logo depois do background de cada
-     janela, então cobre a cor sem apagá-la. */
   --nc-textura: none;
 }
 
@@ -87,7 +36,6 @@
   color-scheme: dark;
 }
 
-/* Kuromi — preto/roxo, acento magenta */
 [data-theme="kuromi"] {
   --bg-rgb: 24 16 28;
   --accent-rgb: 210 90 230;
@@ -99,8 +47,6 @@
   color-scheme: dark;
 }
 
-/* Hello Kitty — branco rosado, acento vermelho do laço (escurecido pra
-   contraste de leitura sobre o fundo claro) */
 [data-theme="hello-kitty"] {
   --bg-rgb: 255 241 246;
   --accent-rgb: 175 15 60;
@@ -112,8 +58,6 @@
   color-scheme: light;
 }
 
-/* Cinnamoroll — branco azulado, acento azul-céu escurecido (o tom claro
-   original ficava quase invisível sobre o fundo pastel) */
 [data-theme="cinnamoroll"] {
   --bg-rgb: 235 247 255;
   --accent-rgb: 10 70 140;
@@ -125,8 +69,6 @@
   color-scheme: light;
 }
 
-/* Gudetama — amarelo pastel de ovo, acento laranja/marrom-gema escurecido
-   pra não sumir sobre o fundo amarelo claro */
 [data-theme="gudetama"] {
   --bg-rgb: 255 247 222;
   --accent-rgb: 150 85 10;
@@ -138,41 +80,6 @@
   color-scheme: light;
 }
 
-/* D'Lírio — tirado da animação do canal: fundo amarelo-limão pastel, corpo
-   creme, cabelo rosa-lilás, vestido e nariz rosa-choque, tudo delimitado
-   por um traço grosso cor de ameixa.
-
-   É o primeiro tema que mexe também na forma, justamente pra imitar esse
-   desenho: o contorno de ameixa vira a borda dos cartões (por isso
-   --nc-traco-* sai do neutro e engrossa pra 2px), o arredondamento cresce
-   em tudo, as tags viram pílulas redondas de verdade e cada cartão ganha
-   uma sombra dura embaixo — sem desfoque, como sombra chapada de desenho.
-
-   Os cantos não são iguais nos quatro lados: cada raio tem um valor próprio,
-   e o eixo vertical é diferente do horizontal, o que tira a régua da forma e
-   deixa tudo com cara de contornado à mão. Vale lembrar que a irregularidade
-   é a mesma em todo cartão — CSS não sorteia forma por elemento, e variar
-   exigiria regra por posição, que é coisa de arquivo compartilhado, não de
-   tema. Por cima disso tudo vem --nc-textura, um grão fino gerado por
-   feTurbulence num SVG embutido, que é o que aproxima do papel.
-
-   --surface-rgb aqui não é preto puro como nos outros temas claros: é a
-   própria cor do traço. Sobre um fundo saturado desses, escurecer com preto
-   dá cinza sujo, enquanto escurecer com a ameixa dá a mesma sombra quente
-   que o desenho usa. E como --nc-traco-rgb cai no --surface-rgb por padrão,
-   o contorno dos cartões sai de graça na mesma cor — só precisa de mais
-   opacidade e espessura.
-
-   Fontes: este é o único tema com fonte embutida (ver Fonts.css). Kalam,
-   manuscrita, em tudo — inclusive nos títulos, que por um tempo usaram uma
-   display bolhuda separada e ficaram destoando do resto. Por isso o tema
-   não declara --nc-fonte-titulo: sem valor próprio, ele cai no
-   --nc-fonte-ui, que é o que se quer aqui. Kalam foi escolhida por ser
-   escrita à mão de verdade e por ter peso 700 real — o app usa negrito em
-   bastante lugar, e engrossar manuscrita por software borra o traço. Cai em
-   Segoe Print e depois Trebuchet MS se o arquivo não carregar. A
-   monoespaçada continua sendo do sistema: Cascadia Mono (Windows 11) é a
-   mais macia disponível, e o cronômetro não justifica outro arquivo. */
 [data-theme="dlirio"] {
   --bg-rgb: 240 240 150;
   --accent-rgb: 175 25 82;
@@ -197,9 +104,5 @@
 
   --nc-sombra-card: 0 2px 0 rgb(var(--surface-rgb) / 0.32);
 
-  /* O grão guarda cor de propósito (saturate 0.55, não 0): dessaturado ele
-     vira só sujeira cinza e some sobre o amarelo. Com cor, os pontinhos
-     puxam pro verde e pro rosa da paleta, que é o que dá a mancha de papel
-     impresso. baseFrequency menor = grão um pouco mais graúdo. */
   --nc-textura: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='g'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.75' numOctaves='4' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0.55'/%3E%3C/filter%3E%3Crect width='160' height='160' filter='url(%23g)' opacity='0.3'/%3E%3C/svg%3E");
 }
