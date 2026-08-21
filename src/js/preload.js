@@ -3,8 +3,8 @@ const { contextBridge, ipcRenderer, webUtils } = require("electron");
 
 // Eventos que o main pode enviar ao renderer
 const RECEIVE = new Set([
-    "quick-create", "set-mode", "focus-tab", "apply-settings", "notes-updated", "reset", "tags-updated",
-    "alarm-ring", "open-tama", "events-updated", "birthdays-updated"
+    "quick-create", "set-mode", "apply-settings", "notes-updated", "reset", "tags-updated",
+    "alarm-ring", "open-tama", "events-updated", "birthdays-updated", "note-updated"
 ]);
 
 // Mensagens fire-and-forget do renderer para o main
@@ -12,12 +12,14 @@ const SEND = new Set([
     "quit-app", "close-widget", "collapse-widget", "expand-widget", "save-data", "open-link",
     "save-settings", "open-settings", "close-settings",
     "quick-capture-submit", "quick-capture-cancel",
-    "alarm-stop", "alarm-snooze"
+    "alarm-stop", "alarm-snooze",
+    "open-note-window", "note-save", "note-close", "note-minimize",
+    "log-entry"
 ]);
 
 // Rotas com resposta
 const INVOKE = new Set([
-    "get-data", "get-app-version",
+    "get-data", "get-app-version", "note-data", "check-update",
     "google-auth-status", "google-auth-start", "google-disconnect", "google-sync-now"
 ]);
 

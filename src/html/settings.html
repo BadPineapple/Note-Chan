@@ -31,6 +31,7 @@
           <button class="theme-swatch" data-theme="hello-kitty"><span class="swatch-dot"></span>Hello Kitty</button>
           <button class="theme-swatch" data-theme="cinnamoroll"><span class="swatch-dot"></span>Cinnamoroll</button>
           <button class="theme-swatch" data-theme="gudetama"><span class="swatch-dot"></span>Gudetama</button>
+          <button class="theme-swatch" data-theme="dlirio"><span class="swatch-dot"></span>D&#39;Lírio</button>
         </div>
       </section>
 
@@ -67,7 +68,47 @@
           <span>Captura rápida</span>
           <button class="shortcut-recorder" id="rec-quickCapture" data-action="quickCapture"></button>
         </div>
+        <div class="shortcut-row">
+          <span>Nova nota em janela</span>
+          <button class="shortcut-recorder" id="rec-newNoteWindow" data-action="newNoteWindow"></button>
+        </div>
         <div id="shortcut-hint" class="hint">Clique num atalho e pressione a combinação desejada (precisa de Ctrl, Alt ou Shift).</div>
+      </section>
+
+      <section>
+        <h2>Editor de texto</h2>
+        <div class="shortcut-row">
+          <span>Tamanho padrão da fonte</span>
+          <select class="settings-select" id="editor-font-size"></select>
+        </div>
+        <div class="shortcut-row">
+          <span>Indentação do TAB</span>
+          <select class="settings-select" id="editor-indent"></select>
+        </div>
+        <div class="hint">Valem nas notas, tanto no widget quanto na janela do bloco de notas.</div>
+
+        <h3 class="sub-titulo">Atalhos de formatação</h3>
+        <div class="shortcut-row">
+          <span>Negrito</span>
+          <button class="shortcut-recorder" id="rec-negrito" data-action="negrito"></button>
+        </div>
+        <div class="shortcut-row">
+          <span>Itálico</span>
+          <button class="shortcut-recorder" id="rec-italico" data-action="italico"></button>
+        </div>
+        <div class="shortcut-row">
+          <span>Sublinhado</span>
+          <button class="shortcut-recorder" id="rec-sublinhado" data-action="sublinhado"></button>
+        </div>
+        <div class="shortcut-row">
+          <span>Lista</span>
+          <button class="shortcut-recorder" id="rec-lista" data-action="lista"></button>
+        </div>
+        <div class="shortcut-row">
+          <span>Lista numerada</span>
+          <button class="shortcut-recorder" id="rec-listaNumerada" data-action="listaNumerada"></button>
+        </div>
+        <div class="hint">Estes valem só dentro da nota, não no sistema — podem repetir combinações que outros programas usam.</div>
       </section>
 
       <section>
@@ -83,6 +124,16 @@
             <button class="shortcut-recorder" id="google-disconnect-btn">Desconectar</button>
           </div>
         </div>
+      </section>
+
+      <section>
+        <h2>Atualizações</h2>
+        <div class="shortcut-row">
+          <span id="update-status">Versão instalada: <span id="app-version-inline"></span></span>
+          <button class="shortcut-recorder" id="update-check-btn">Verificar</button>
+        </div>
+        <div id="update-hint" class="hint">O Note-Chan avisa quando sai uma versão nova. O download é sempre você quem escolhe fazer.</div>
+        <button id="update-download-btn" class="hidden"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 15V3"/><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="m7 10 5 5 5-5"/></svg> Abrir a página de download</button>
       </section>
 
       <div id="app-footer">Note-Chan <span id="app-version"></span> — por Natz</div>
@@ -103,9 +154,13 @@
     </div>
   </div>
 
+  <script src="../js/Logger.js"></script>
   <script src="../js/EventUtils.js"></script>
   <script src="../js/TagUtils.js"></script>
   <script src="../js/Icons.js"></script>
+  <script src="../js/UiUtils.js"></script>
+  <script src="../js/RichText.js"></script>
+  <script src="../js/RichEditor.js"></script>
   <script src="../js/AlarmSounds.js"></script>
   <script src="../js/Settings.js"></script>
 </body>

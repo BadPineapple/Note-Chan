@@ -3,6 +3,8 @@
 // do painel dele no widget (ver TamaSprite.js), com uma linha de intro
 // variada em vez do "Evento" seco de antes.
 
+Log.iniciar("alarme");
+
 const spriteEl = document.getElementById("alarm-sprite");
 const introEl  = document.getElementById("alarm-intro");
 const titleEl  = document.getElementById("alarm-title");

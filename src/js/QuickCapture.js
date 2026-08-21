@@ -1,5 +1,7 @@
 /* ─────────────────────────────  QuickCapture.js  ─────────────────────────── */
 
+Log.iniciar("captura");
+
 const input = document.getElementById("qc-input");
 
 function applySettings(settings) {
@@ -11,6 +13,8 @@ function reset() {
     input.value = "";
     input.focus();
 }
+
+RichEditor.ligarSetas(input);
 
 input.addEventListener("keydown", (e) => {
     if (e.key === "Enter" && !e.shiftKey) {

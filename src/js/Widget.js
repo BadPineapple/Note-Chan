@@ -2,9 +2,14 @@
 // Renderer do widget. Roda em sandbox (sem Node) — toda comunicação com o
 // processo principal passa por window.api (ver preload.js).
 
+Log.iniciar("widget");
+
 let data = {
     notes: [], lists: [], events: [], tags: [],
-    tamagotchi: { level: 1, xp: 0, vida: 100, fome: 100, carencia: 100, higiene: 100, lastUpdate: Date.now(), lastInteraction: Date.now() },
+    tamagotchi: {
+        level: 1, xp: 0, vida: 100, fome: 100, carencia: 100, higiene: 100,
+        lastUpdate: Date.now(), lastInteraction: Date.now(), lastCarenciaUpdate: Date.now()
+    },
     widget: { collapsed: true, activeTab: "notas" }
 };
 let activeTab = "notas";
@@ -48,8 +53,16 @@ const tamaBarEls = {
 
 /* ══════════════════════════════  PERSISTÊNCIA  ══════════════════════════ */
 
+// Enquanto o get-data do boot não voltar, `data` ainda são os arrays vazios
+// do topo do arquivo. Um save disparado nesse intervalo mandaria listas
+// vazias pro main, que trata item ausente como EXCLUÍDO (ver
+// mergeMainOwnedList em Main.js) -- apagaria tudo e ainda enfileiraria a
+// exclusão no Google. Nenhuma gravação sai antes do boot terminar.
+let booted = false;
+
 let saveTimer = null;
 function scheduleSave() {
+    if (!booted) return;
     clearTimeout(saveTimer);
     saveTimer = setTimeout(() => {
         window.api.send("save-data", {
@@ -63,9 +76,8 @@ function scheduleSave() {
 
 /* ═══════════════════════════════  UTILIDADES  ═══════════════════════════ */
 
-function newId() {
-    return crypto.randomUUID();
-}
+// Compartilhadas com a janela de Configurações — ver UiUtils.js.
+const { newId, escapeHtml, formatBR, armDeleteConfirm, clickStartedInside } = UiUtils;
 
 function now() {
     return Date.now();
@@ -76,32 +88,6 @@ function formatDate(ts) {
     return new Date(ts).toLocaleString("pt-BR", {
         day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit"
     });
-}
-
-function escapeHtml(str) {
-    const div = document.createElement("div");
-    div.textContent = str ?? "";
-    return div.innerHTML;
-}
-
-// window.confirm() é um diálogo NATIVO e bloqueante — nesta janela
-// (alwaysOnTop no nível "screen-saver", o mais alto do Windows) ele abre
-// escondido atrás do próprio widget, mas ainda assim trava a thread de JS
-// esperando resposta. Resultado: tudo parece travado até o usuário mexer
-// em outra janela por acaso. Por isso exclusão é confirmada com dois
-// cliques no próprio botão, sem diálogo nenhum.
-function armDeleteConfirm(btn, onConfirm) {
-    if (btn.classList.contains("confirm-armed")) {
-        clearTimeout(btn._armTimer);
-        onConfirm();
-        return;
-    }
-    btn.classList.add("confirm-armed");
-    btn.textContent = "?";
-    btn._armTimer = setTimeout(() => {
-        btn.classList.remove("confirm-armed");
-        btn.innerHTML = Icons.svg("x", 12);
-    }, 2500);
 }
 
 /* ═══════════════════════════════════  TAGS  ══════════════════════════════ */
@@ -126,10 +112,12 @@ function refreshCardTagsHeader(card, item) {
     if (slot) slot.innerHTML = cardTagsInnerHtml(item.tagIds);
 }
 
-function renderTagPicker(container, item) {
-    container.innerHTML = "";
+// pickerEl, não "container": o #container do widget é uma global deste
+// arquivo e sombrear o nome aqui dentro é pedir confusão.
+function renderTagPicker(pickerEl, item) {
+    pickerEl.innerHTML = "";
     if (data.tags.length === 0) {
-        container.innerHTML = `<span class="tag-picker-hint">Crie tags em Configurações → Tags</span>`;
+        pickerEl.innerHTML = `<span class="tag-picker-hint">Crie tags em Configurações → Tags</span>`;
         return;
     }
     item.tagIds = item.tagIds || [];
@@ -147,10 +135,10 @@ function renderTagPicker(container, item) {
                 : [...item.tagIds, tag.id];
             item.updatedAt = now();
             scheduleSave();
-            renderTagPicker(container, item);
-            refreshCardTagsHeader(container.closest(".card"), item);
+            renderTagPicker(pickerEl, item);
+            refreshCardTagsHeader(pickerEl.closest(".card"), item);
         });
-        container.appendChild(btn);
+        pickerEl.appendChild(btn);
     });
 }
 
@@ -162,11 +150,6 @@ const RECURRENCE_LABELS = {
     monthly: `${RECURRENCE_ICON} Mensal`,
     yearly: `${RECURRENCE_ICON} Anual`
 };
-
-function formatBR(iso) {
-    const [, m, d] = iso.split("-");
-    return `${d}/${m}`;
-}
 
 // { text, cls } prontos pra virar um .event-badge
 function occurrenceBadge(occDate) {
@@ -492,13 +475,22 @@ const TAMA_XP_PER_LEVEL = 100;
 // bichinho), não com o relógio puro; vida não decai sozinha, só sofre se as
 // outras 3 ficarem ruins por muito tempo (ver applyTamaDecay), e se recupera
 // sozinha quando elas voltam ao normal.
-const TAMA_FOME_MIN_TO_ZERO = 8 * 60;      // ~8h sem comer
-const TAMA_HIGIENE_MIN_TO_ZERO = 20 * 60;  // bem mais devagar que fome
-const TAMA_CARENCIA_MIN_TO_ZERO = 10 * 60; // ~10h sem interação nenhuma
+// Os três contam SÓ tempo de PC ligado com o app rodando (ver o salto grande
+// tratado em applyTamaDecay), então são horas de uso real, não de calendário.
+const TAMA_FOME_MIN_TO_ZERO = 24 * 60;     // 24h de uso sem comer
+const TAMA_HIGIENE_MIN_TO_ZERO = 60 * 60;  // 60h -- sempre foi a mais lenta das três
+const TAMA_CARENCIA_MIN_TO_ZERO = 30 * 60; // 30h sem interação nenhuma
 const TAMA_NEGLECT_THRESHOLD = 25;         // abaixo disso conta como "negligenciado"
 const TAMA_NORMAL_THRESHOLD = 50;          // acima disso conta como "normal" pra vida regenerar
 const TAMA_PET_COOLDOWN_MS = 3000;         // evita fazer carinho em rajada pra inflar carência
 const TAMA_LIVE_TICK_MS = 3 * 60 * 1000;   // recalcula decaimento periodicamente mesmo com o painel fechado
+
+// Salto maior que isso desde a última passada não é tempo de uso: é app
+// fechado, máquina dormindo/hibernando ou processo congelado pelo sistema.
+// Generoso de propósito (5x o tick) -- errar pra mais só faz contar alguns
+// minutos de sono como uso, o que é irrisório perto de 24h; errar pra menos
+// travaria o decaimento de vez, e aí o bichinho nunca sentiria fome.
+const TAMA_MAX_GAP_MS = 5 * TAMA_LIVE_TICK_MS;
 
 // Desenho do personagem (grid de pixels -> SVG) mora em TamaSprite.js,
 // compartilhado com o popup de alarme -- ver esse arquivo.
@@ -511,9 +503,27 @@ const tamaClamp = TamaSprite.clamp;
 // o widget só ter ficado parado numa aba diferente. fome/higiene usam
 // lastUpdate (tempo puro); carência usa lastInteraction (só anda quando o
 // usuário de fato interage -- ver tamaRegisterInteraction).
+// Devolve se algum status mudou de verdade -- o tick periódico usa isso
+// para não gravar em disco a cada 3 minutos sem ter o que salvar.
 function applyTamaDecay() {
     const tama = data.tamagotchi;
     const now = Date.now();
+    const antes = tama.vida + tama.fome + tama.carencia + tama.higiene;
+
+    // Só conta o tempo em que o computador esteve de fato ligado com o app
+    // rodando: um buraco grande desde a última passada significa app fechado,
+    // PC dormindo ou processo congelado. Nesse caso reancora os relógios sem
+    // descontar nada -- voltar de um fim de semana não encontra o bichinho
+    // faminto, ele fica exatamente como foi deixado.
+    const gapMs = Math.max(
+        now - (tama.lastUpdate || now),
+        now - (tama.lastCarenciaUpdate || tama.lastInteraction || now)
+    );
+    if (gapMs > TAMA_MAX_GAP_MS) {
+        tama.lastUpdate = now;
+        tama.lastCarenciaUpdate = now;
+        return;
+    }
 
     const elapsedMin = (now - (tama.lastUpdate || now)) / 60000;
     if (elapsedMin > 0) {
@@ -522,9 +532,16 @@ function applyTamaDecay() {
         tama.lastUpdate = now;
     }
 
-    const interactionElapsedMin = (now - (tama.lastInteraction || now)) / 60000;
-    if (interactionElapsedMin > 0) {
-        tama.carencia = tamaClamp(tama.carencia - (interactionElapsedMin / TAMA_CARENCIA_MIN_TO_ZERO) * 100);
+    // Carência precisa do próprio marcador de "última vez que o decaimento
+    // foi aplicado", igual lastUpdate faz pra fome/higiene. Medir sempre a
+    // partir de lastInteraction e SUBTRAIR o resultado do valor atual conta o
+    // mesmo tempo de novo a cada chamada: com o tick de 3 min a carência
+    // zerava em ~1h em vez das 10h projetadas. lastInteraction continua
+    // existindo como registro de quando o usuário de fato interagiu.
+    const carenciaElapsedMin = (now - (tama.lastCarenciaUpdate || tama.lastInteraction || now)) / 60000;
+    if (carenciaElapsedMin > 0) {
+        tama.carencia = tamaClamp(tama.carencia - (carenciaElapsedMin / TAMA_CARENCIA_MIN_TO_ZERO) * 100);
+        tama.lastCarenciaUpdate = now;
     }
 
     // Vida não decai pelo relógio puro -- só sofre quando algum dos outros 3
@@ -540,16 +557,23 @@ function applyTamaDecay() {
     }
     // nunca "morre" nessa versão base -- só fica bem mal cuidado visualmente.
     tama.vida = Math.max(5, tama.vida);
+
+    return (tama.vida + tama.fome + tama.carencia + tama.higiene) !== antes;
 }
 
 // Marca que o usuário interagiu de verdade com o app/bichinho agora --
 // única coisa que "segura" o decaimento de carência (ver applyTamaDecay).
 function tamaRegisterInteraction() {
-    data.tamagotchi.lastInteraction = Date.now();
+    const now = Date.now();
+    data.tamagotchi.lastInteraction = now;
+    // zera também o relógio do decaimento, senão o tempo já "pago" antes da
+    // interação voltaria a ser descontado na próxima passada.
+    data.tamagotchi.lastCarenciaUpdate = now;
 }
 
 let tamaSaveTimer = null;
 function scheduleTamaSave() {
+    if (!booted) return; // mesmo motivo do scheduleSave
     clearTimeout(tamaSaveTimer);
     tamaSaveTimer = setTimeout(() => {
         window.api.send("save-data", { tamagotchi: data.tamagotchi });
@@ -730,9 +754,9 @@ renderTamaActions();
 // última vez que o painel foi aberto, e as notificações de status baixo
 // (ver Main.js) ficariam paradas no tempo se o usuário nunca abrir a aba.
 setInterval(() => {
-    applyTamaDecay();
+    const mudou = applyTamaDecay();
     if (isTamaOpen()) updateTamaUI();
-    scheduleTamaSave();
+    if (mudou) scheduleTamaSave();
 }, TAMA_LIVE_TICK_MS);
 
 // Abre o painel do bichinho quando o usuário clica numa notificação sobre
@@ -858,22 +882,105 @@ function attachCardDrag(card, id, itemsArray) {
     });
 }
 
+/* ═════════════  CABEÇALHO DO CARD: ABRIR, FECHAR E RENOMEAR  ══════════════ */
+
+// clickStartedInside (ver UiUtils.js) é o que distingue "o foco saiu do
+// card" de "o usuário clicou dentro do próprio card": sem isso o card
+// recolhia no mousedown e o click seguinte, vendo o card já fechado,
+// reabria. Só notas e listas sofriam, porque só elas põem foco num campo ao
+// expandir -- evento não foca nada, por isso passava ileso.
+//
+// Clique simples alterna expandido/recolhido; duplo clique no título
+// renomeia. Os dois gestos disputam o mesmo alvo, então recolher A PARTIR DO
+// TÍTULO espera a janela do duplo clique antes de valer. Sem essa espera o
+// 1º clique fecha o card e o duplo clique nunca chega a entrar em edição --
+// e numa nota/lista recém-criada ela ainda sumia no caminho, porque card sem
+// conteúdo é descartado ao ser recolhido. Clique no resto do cabeçalho
+// (espaço vazio, área das tags) continua recolhendo na hora.
+const DBLCLICK_GRACE_MS = 220;
+
+// expand(focusField): abre o card; focusField=false quando a abertura é só
+// pra renomear, pra não roubar o foco do título. collapse(): fecha.
+// Devolve { beginTitleEdit } pra quem precisa entrar em edição por outro
+// caminho (o Enter que navega entre os campos do evento, por exemplo).
+function attachHeaderToggle(card, title, expand, collapse) {
+    let pendingCollapse = null;
+
+    function cancelPendingCollapse() {
+        if (pendingCollapse === null) return;
+        clearTimeout(pendingCollapse);
+        pendingCollapse = null;
+    }
+
+    // Setas valem em qualquer texto que o usuário escreve, não só na nota
+    // (ver ligarSetas). O título passa por aqui nos três tipos de card.
+    RichEditor.ligarSetas(title);
+
+    function beginTitleEdit() {
+        cancelPendingCollapse();
+        if (!card.classList.contains("expanded")) expand(false);
+        title.contentEditable = "true";
+        title.focus();
+        document.execCommand("selectAll", false, null);
+    }
+
+    card.querySelector(".card-header").addEventListener("click", (e) => {
+        if (e.detail > 1) return; // 2º clique do duplo-clique — quem trata é o dblclick
+        if (!card.classList.contains("expanded")) { expand(true); return; }
+        if (title.contains(e.target)) {
+            cancelPendingCollapse();
+            pendingCollapse = setTimeout(() => {
+                pendingCollapse = null;
+                collapse();
+            }, DBLCLICK_GRACE_MS);
+        } else {
+            collapse();
+        }
+    });
+
+    // Foco saiu de todos os campos do card (clicou fora, deu Tab pra fora,
+    // etc.) -> recolhe sozinho. O setTimeout espera o próximo tick porque
+    // focusout dispara ANTES do novo elemento realmente ganhar o foco —
+    // checar document.activeElement direto seria sempre o elemento antigo.
+    card.addEventListener("focusout", () => {
+        setTimeout(() => {
+            if (card.contains(document.activeElement)) return;
+            if (clickStartedInside(card)) return; // ver UiUtils.js
+            cancelPendingCollapse();
+            collapse();
+        }, 0);
+    });
+
+    title.addEventListener("dblclick", (e) => {
+        e.stopPropagation();
+        beginTitleEdit();
+    });
+
+    // Já editando: o clique só posiciona o cursor, não alterna o card.
+    title.addEventListener("click", (e) => { if (title.isContentEditable) e.stopPropagation(); });
+
+    return { beginTitleEdit };
+}
+
 /* ═══════════════════════════════  NOTAS  ═════════════════════════════════ */
 
 function noteCardNode(note) {
     const card = document.createElement("div");
-    card.className = "card" + (expanded.has(note.id) ? " expanded" : "");
+    card.className = "card note-card" + (expanded.has(note.id) ? " expanded" : "");
     card.dataset.id = note.id;
 
     card.innerHTML = `
         <div class="card-delete" draggable="false" title="Excluir nota">${Icons.svg("x", 12)}</div>
+        <div class="card-window" draggable="false" title="Abrir em janela">${Icons.svg("maximize-2", 12)}</div>
         <div class="card-header">
             <span class="card-title" spellcheck="false" draggable="false">${escapeHtml(note.title)}</span>
             <div class="card-tags">${cardTagsInnerHtml(note.tagIds)}</div>
         </div>
-        <div class="card-preview">${escapeHtml(note.content.slice(0, 80)) || "(vazia)"}</div>
+        <div class="card-preview">${escapeHtml(RichText.toPlainText(note.content).slice(0, 80)) || "(vazia)"}</div>
         <div class="card-body">
-            <textarea class="note-editor" placeholder="Escreva aqui..." draggable="false">${escapeHtml(note.content)}</textarea>
+            <div class="nc-barra"></div>
+            <div class="note-editor nc-rico" contenteditable="true" spellcheck="false" draggable="false"
+                 data-placeholder="Escreva aqui...">${RichText.sanitize(note.content)}</div>
             <div class="card-meta">Atualizado em ${formatDate(note.updatedAt)}</div>
             <div class="tag-picker"></div>
         </div>
@@ -881,10 +988,24 @@ function noteCardNode(note) {
 
     renderTagPicker(card.querySelector(".tag-picker"), note);
 
+    const title = card.querySelector(".card-title");
+
+    function expandNote(focusEditor) {
+        card.classList.add("expanded");
+        expanded.add(note.id);
+        if (focusEditor) card.querySelector(".note-editor")?.focus();
+    }
+
+    function atualizarPrevia() {
+        card.querySelector(".card-preview").textContent =
+            RichText.toPlainText(note.content).slice(0, 80) || "(vazia)";
+    }
+
     function collapseNote() {
         if (!card.classList.contains("expanded")) return;
         card.classList.remove("expanded");
         expanded.delete(note.id);
+        atualizarPrevia(); // volta a aparecer agora, então é aqui que vale recalcular
         // Recolher com o título ainda em edição (ex.: nota criada — o
         // título já nasce editável — fechada antes de terminar de digitar
         // o nome) commita direto em vez de confiar no evento blur -- o
@@ -895,7 +1016,7 @@ function noteCardNode(note) {
         if (title.isContentEditable) commitTitle();
         // nota nunca editada (título e conteúdo ainda no padrão) — some
         // sozinha em vez de acumular cards vazios.
-        if (note.title === "Nova nota" && !note.content.trim()) {
+        if (note.title === "Nova nota" && RichText.isEmpty(note.content)) {
             data.notes = data.notes.filter(n => n.id !== note.id);
             card.remove();
             scheduleSave();
@@ -903,32 +1024,7 @@ function noteCardNode(note) {
         }
     }
 
-    card.querySelector(".card-header").addEventListener("click", (e) => {
-        // 2º clique de um duplo-clique no título (que edita o título, ver
-        // abaixo) não deve alternar expandido/recolhido de novo -- senão o
-        // 1º clique fecha, o 2º reabre, e o dblclick some no meio do caminho.
-        if (e.detail > 1) return;
-        if (card.classList.contains("expanded")) {
-            collapseNote();
-        } else {
-            card.classList.add("expanded");
-            expanded.add(note.id);
-            card.querySelector(".note-editor")?.focus();
-        }
-    });
-
-    // Sai o foco de todos os campos do card (clicou fora, deu Tab pra fora,
-    // etc.) -> recolhe sozinho. O setTimeout espera o próximo tick porque
-    // focusout dispara ANTES do novo elemento realmente ganhar o foco —
-    // checar document.activeElement direto seria sempre o elemento antigo.
-    card.addEventListener("focusout", () => {
-        setTimeout(() => {
-            if (card.contains(document.activeElement)) return;
-            collapseNote();
-        }, 0);
-    });
-
-    const title = card.querySelector(".card-title");
+    attachHeaderToggle(card, title, expandNote, collapseNote);
 
     // Sai do modo de edição do título e salva o nome -- chamado pelo blur
     // real (usuário clicou fora) OU direto pelo collapseNote() (ver acima),
@@ -941,19 +1037,6 @@ function noteCardNode(note) {
         scheduleSave();
     }
 
-    title.addEventListener("dblclick", (e) => {
-        e.stopPropagation();
-        // O 1º clique do duplo-clique já alternou expandido/recolhido (ver
-        // handler de .card-header, guardado por e.detail>1 pro 2º clique não
-        // alternar de novo). Se esse 1º clique FECHOU o card, o dblclick não
-        // deve entrar em edição -- senão o título fica "selecionado" piscando
-        // no cabeçalho de um card recolhido, parecendo que reabriu sozinho.
-        if (!card.classList.contains("expanded")) return;
-        title.contentEditable = "true";
-        title.focus();
-        document.execCommand("selectAll", false, null);
-    });
-    title.addEventListener("click", (e) => { if (title.isContentEditable) e.stopPropagation(); });
     title.addEventListener("blur", commitTitle);
     title.addEventListener("keydown", (e) => {
         if (e.key !== "Enter") return;
@@ -963,18 +1046,43 @@ function noteCardNode(note) {
     });
 
     const editor = card.querySelector(".note-editor");
-    editor.addEventListener("input", () => {
-        note.content = editor.value;
-        note.updatedAt = now();
-        card.querySelector(".card-preview").textContent = note.content.slice(0, 80) || "(vazia)";
-        scheduleSave();
+    const editorApi = RichEditor.attach(editor, {
+        jaHigienizado: true, // o template acima já passou pelo sanitize
+        onChange: () => {
+            // innerHTML cru aqui de propósito: quem higieniza é o attach(),
+            // na carga e na colagem. Rodar o sanitize a cada tecla custaria
+            // uma varredura do documento inteiro por caractere digitado.
+            note.content = editor.innerHTML;
+            note.updatedAt = now();
+            // A prévia NÃO é atualizada aqui: ela fica escondida enquanto o
+            // card está expandido (ver .card.expanded .card-preview no CSS), e
+            // recalculá-la custa um parse do documento inteiro por tecla
+            // digitada. Quem atualiza é o collapseNote, ao voltar a aparecer.
+            scheduleSave();
+        },
+        // Esc devolve o foco sem fechar o widget: dentro do editor o Enter
+        // agora quebra linha e continua lista, então precisava sobrar alguma
+        // tecla para dizer "terminei aqui".
+        onEscape: () => editor.blur(),
+        // Funções, não valores: o card fica vivo na tela e precisa obedecer a
+        // configuração de agora, não a de quando foi criado.
+        indentSize: () => data.settings?.editor?.indentSize,
+        atalhos: () => data.settings?.editorShortcuts
     });
-    // Enter finaliza a edição; Shift+Enter quebra linha normalmente.
-    editor.addEventListener("keydown", (e) => {
-        if (e.key !== "Enter" || e.shiftKey) return;
-        e.preventDefault();
+
+    // Só as ferramentas que valem em qualquer lugar. Alinhamento, código e
+    // tamanho de fonte são exclusivos do bloco de notas -- num card de 320px
+    // de largura eles não teriam onde caber, nem fariam sentido na prévia.
+    RichEditor.montarBarra(card.querySelector(".nc-barra"), editorApi, RichEditor.BARRA_BASICA, {
+        atalhos: () => data.settings?.editorShortcuts
+    });
+
+    // Abre esta nota numa janela redimensionável, estilo bloco de notas (ver
+    // openNoteWindow em Main.js). O que for digitado lá volta pra cá pelo
+    // notes-updated.
+    card.querySelector(".card-window").addEventListener("click", (e) => {
         e.stopPropagation();
-        editor.blur();
+        window.api.send("open-note-window", note.id);
     });
 
     card.querySelector(".card-delete").addEventListener("click", (e) => {
@@ -1050,9 +1158,9 @@ function listItemNode(list, item, refreshPreview, insertItemAfter) {
         list.updatedAt = now();
         scheduleSave();
 
-        const container = li.parentElement;
-        container.innerHTML = "";
-        list.items.forEach(it => container.appendChild(listItemNode(list, it, refreshPreview, insertItemAfter)));
+        const listEl = li.parentElement;
+        listEl.innerHTML = "";
+        list.items.forEach(it => listEl.appendChild(listItemNode(list, it, refreshPreview, insertItemAfter)));
     });
 
     li.querySelector('input[type="checkbox"]').addEventListener("change", (e) => {
@@ -1069,6 +1177,7 @@ function listItemNode(list, item, refreshPreview, insertItemAfter) {
     });
 
     const text = li.querySelector(".item-text");
+    RichEditor.ligarSetas(text);
     text.addEventListener("blur", () => {
         item.text = text.textContent.trim();
         if (!item.text) {
@@ -1157,6 +1266,14 @@ function listCardNode(list) {
     const itemList = card.querySelector(".item-list");
     list.items.forEach(item => itemList.appendChild(listItemNode(list, item, refreshPreview, insertItemAfter)));
 
+    const title = card.querySelector(".card-title");
+
+    function expandList(focusAddInput) {
+        card.classList.add("expanded");
+        expanded.add(list.id);
+        if (focusAddInput) card.querySelector(".item-add")?.focus();
+    }
+
     function collapseList() {
         if (!card.classList.contains("expanded")) return;
         card.classList.remove("expanded");
@@ -1171,25 +1288,7 @@ function listCardNode(list) {
         }
     }
 
-    card.querySelector(".card-header").addEventListener("click", (e) => {
-        if (e.detail > 1) return;
-        if (card.classList.contains("expanded")) {
-            collapseList();
-        } else {
-            card.classList.add("expanded");
-            expanded.add(list.id);
-            card.querySelector(".item-add")?.focus();
-        }
-    });
-
-    card.addEventListener("focusout", () => {
-        setTimeout(() => {
-            if (card.contains(document.activeElement)) return;
-            collapseList();
-        }, 0);
-    });
-
-    const title = card.querySelector(".card-title");
+    attachHeaderToggle(card, title, expandList, collapseList);
 
     function commitTitle() {
         title.contentEditable = "false";
@@ -1199,19 +1298,6 @@ function listCardNode(list) {
         scheduleSave();
     }
 
-    title.addEventListener("dblclick", (e) => {
-        e.stopPropagation();
-        // O 1º clique do duplo-clique já alternou expandido/recolhido (ver
-        // handler de .card-header, guardado por e.detail>1 pro 2º clique não
-        // alternar de novo). Se esse 1º clique FECHOU o card, o dblclick não
-        // deve entrar em edição -- senão o título fica "selecionado" piscando
-        // no cabeçalho de um card recolhido, parecendo que reabriu sozinho.
-        if (!card.classList.contains("expanded")) return;
-        title.contentEditable = "true";
-        title.focus();
-        document.execCommand("selectAll", false, null);
-    });
-    title.addEventListener("click", (e) => { if (title.isContentEditable) e.stopPropagation(); });
     title.addEventListener("blur", commitTitle);
     title.addEventListener("keydown", (e) => {
         if (e.key !== "Enter") return;
@@ -1221,6 +1307,7 @@ function listCardNode(list) {
     });
 
     const addInput = card.querySelector(".item-add");
+    RichEditor.ligarSetas(addInput);
     addInput.addEventListener("keydown", (e) => {
         if (e.key !== "Enter") return;
         e.stopPropagation();
@@ -1352,6 +1439,7 @@ function eventCardNode(event) {
     event.items.forEach(item => checklistEl.appendChild(listItemNode(event, item, refreshPreview, insertEventItemAfter)));
 
     const eventItemAdd = card.querySelector(".item-add");
+    RichEditor.ligarSetas(eventItemAdd);
     eventItemAdd.addEventListener("keydown", (e) => {
         if (e.key !== "Enter") return;
         e.stopPropagation();
@@ -1366,6 +1454,15 @@ function eventCardNode(event) {
         scheduleSave();
     });
 
+    const title = card.querySelector(".card-title");
+
+    // Evento não põe foco em campo nenhum ao expandir (diferente de nota e
+    // lista) — os campos ficam todos visíveis, não faz sentido roubar o foco.
+    function expandEvent() {
+        card.classList.add("expanded");
+        expanded.add(event.id);
+    }
+
     function collapseEvent() {
         if (!card.classList.contains("expanded")) return;
         card.classList.remove("expanded");
@@ -1377,20 +1474,7 @@ function eventCardNode(event) {
         if (title.isContentEditable) commitTitle();
     }
 
-    card.querySelector(".card-header").addEventListener("click", (e) => {
-        if (e.detail > 1) return;
-        if (card.classList.contains("expanded")) collapseEvent();
-        else { card.classList.add("expanded"); expanded.add(event.id); }
-    });
-
-    card.addEventListener("focusout", () => {
-        setTimeout(() => {
-            if (card.contains(document.activeElement)) return;
-            collapseEvent();
-        }, 0);
-    });
-
-    const title = card.querySelector(".card-title");
+    const cardHeader = attachHeaderToggle(card, title, expandEvent, collapseEvent);
 
     function commitTitle() {
         title.contentEditable = "false";
@@ -1400,19 +1484,6 @@ function eventCardNode(event) {
         scheduleSave();
     }
 
-    title.addEventListener("dblclick", (e) => {
-        e.stopPropagation();
-        // O 1º clique do duplo-clique já alternou expandido/recolhido (ver
-        // handler de .card-header, guardado por e.detail>1 pro 2º clique não
-        // alternar de novo). Se esse 1º clique FECHOU o card, o dblclick não
-        // deve entrar em edição -- senão o título fica "selecionado" piscando
-        // no cabeçalho de um card recolhido, parecendo que reabriu sozinho.
-        if (!card.classList.contains("expanded")) return;
-        title.contentEditable = "true";
-        title.focus();
-        document.execCommand("selectAll", false, null);
-    });
-    title.addEventListener("click", (e) => { if (title.isContentEditable) e.stopPropagation(); });
     title.addEventListener("blur", commitTitle);
     const dateEl       = card.querySelector(".ev-date");
     const recurrenceEl = card.querySelector(".ev-recurrence");
@@ -1426,12 +1497,12 @@ function eventCardNode(event) {
 
     // O título só é focável de verdade quando contentEditable="true" (span
     // comum não recebe foco por padrão) — fora do duplo clique, isso só
-    // acontece aqui, ao entrar nele via Enter/Tab.
+    // acontece aqui, ao entrar nele via Enter/Tab. Reaproveita o mesmo
+    // caminho do duplo clique (ver attachHeaderToggle) pra não duplicar a
+    // entrada em modo de edição.
     function focusField(field) {
         if (field === title) {
-            title.contentEditable = "true";
-            title.focus();
-            document.execCommand("selectAll", false, null);
+            cardHeader.beginTitleEdit();
         } else {
             field.focus();
             if (typeof field.select === "function") field.select();
@@ -1735,6 +1806,11 @@ document.addEventListener("keydown", (e) => {
 
 function applySettings(settings) {
     if (!settings) return;
+    // Guarda também: os editores já criados leem data.settings ao vivo para
+    // saber o tamanho da indentação e os atalhos de formatação, e sem isto
+    // ficariam com o valor do boot para sempre.
+    data.settings = settings;
+    RichEditor.aplicarFonte(settings.editor?.fontSize);
     document.documentElement.dataset.theme = settings.theme || "gold";
     const alpha = Math.min(100, Math.max(20, settings.transparency ?? 60)) / 100;
     document.documentElement.style.setProperty("--bg-alpha", alpha);
@@ -1746,8 +1822,7 @@ window.api.on("apply-settings", applySettings);
 // widget está aberto — atualiza a lista local e redesenha (pills e o
 // seletor dependem de data.tags).
 window.api.on("tags-updated", (tags) => {
-    data.tags = tags;
-    renderBoard();
+    applyRemoteUpdate(() => { data.tags = tags; });
 });
 
 /* ══════════════════════════  ARQUIVO SOLTO VIRA NOTA  ═════════════════════ */
@@ -1770,7 +1845,12 @@ panel.addEventListener("dragenter", (e) => {
 panel.addEventListener("dragover", (e) => {
     if (hasFiles(e)) e.preventDefault();
 });
-panel.addEventListener("dragleave", () => {
+// Só conta saída de arraste de ARQUIVO: arrastar um card ou item de lista
+// dentro do painel também dispara dragleave, e sem essa checagem o contador
+// da moldura de "solte aqui" mexeria por causa de um gesto que não tem nada
+// a ver com arquivo.
+panel.addEventListener("dragleave", (e) => {
+    if (!hasFiles(e)) return;
     dragEnterDepth = Math.max(0, dragEnterDepth - 1);
     if (dragEnterDepth === 0) container.classList.remove("file-drop-active");
 });
@@ -1794,7 +1874,7 @@ panel.addEventListener("drop", async (e) => {
             content = `Arquivo: ${filePath || file.name}`;
         }
         const title = (file.name.replace(/\.[^.]+$/, "") || file.name).slice(0, 60);
-        data.notes.unshift({ id: newId(), title, content, createdAt: now(), updatedAt: now() });
+        data.notes.unshift({ id: newId(), title, content: RichText.fromPlainText(content), createdAt: now(), updatedAt: now() });
     }
 
     setActiveTab("notas");
@@ -1803,27 +1883,80 @@ panel.addEventListener("drop", async (e) => {
 
 /* ══════════════════════════════  TRAY: CRIAÇÃO RÁPIDA  ═══════════════════ */
 
-window.api.on("quick-create", (type) => {
+function runQuickCreate(type) {
     if (type === "lista") { setActiveTab("listas"); createList(); }
     else if (type === "evento") { setActiveTab("eventos"); createEvent(); }
     else { setActiveTab("notas"); createNote(); }
+}
+
+// Criar antes do boot terminar montaria o item sobre os arrays vazios e ele
+// sumiria quando o get-data chegasse -- guarda e executa depois.
+let pendingQuickCreate = null;
+
+window.api.on("quick-create", (type) => {
+    if (!booted) { pendingQuickCreate = type; return; }
+    runQuickCreate(type);
 });
 
-window.api.on("focus-tab", (tab) => setActiveTab(tab));
+/* ═══════════  ATUALIZAÇÕES DO MAIN SEM ATROPELAR A EDIÇÃO  ════════════════ */
+// Redesenhar o board no meio de uma digitação destrói o campo em foco e
+// perde o que ainda não foi salvo (o save daqui tem 400 ms de atraso).
+// Enquanto houver edição em andamento dentro do board, a atualização espera
+// e é aplicada assim que o foco sair.
 
-// Captura rápida cria a nota direto no main (não tem acesso ao estado do
-// widget) — quando o widget está aberto, sincroniza a lista local com a
-// que o main já persistiu, sem precisar de outro round-trip get-data.
+let pendingRemoteUpdates = [];
+
+function isEditingInBoard() {
+    return board.contains(document.activeElement) && isEditingContext();
+}
+
+function applyRemoteUpdate(fn) {
+    if (isEditingInBoard()) { pendingRemoteUpdates.push(fn); return; }
+    fn();
+    renderBoard();
+}
+
+function flushRemoteUpdates() {
+    if (pendingRemoteUpdates.length === 0 || isEditingInBoard()) return;
+    const updates = pendingRemoteUpdates;
+    pendingRemoteUpdates = [];
+    updates.forEach(fn => fn());
+    renderBoard();
+}
+
+document.addEventListener("focusout", () => setTimeout(flushRemoteUpdates, 0));
+
+// As notas mudaram fora do widget: captura rápida, nota aberta em janela
+// própria (ver Main.js) ou o atalho de criar já em janela. Mescla por id
+// preferindo o que foi editado AQUI mais recentemente — a cópia do main pode
+// estar até ~900 ms atrás (400 de atraso no save daqui + 500 no dele) e
+// desfaria a edição em andamento.
+function mergeNotesFromMain(incoming) {
+    const localById = new Map(data.notes.map(n => [n.id, n]));
+    data.notes = incoming.map(inc => {
+        const local = localById.get(inc.id);
+        return local && (local.updatedAt || 0) > (inc.updatedAt || 0) ? local : inc;
+    });
+}
+
 window.api.on("notes-updated", (notes) => {
-    data.notes = notes;
-    if (activeTab === "notas") renderBoard();
+    applyRemoteUpdate(() => mergeNotesFromMain(notes));
 });
 
 // Sincronização com o Google Agenda alterou os eventos (criou, atualizou ou
-// removeu um evento cancelado do lado de lá) — ver Main.js.
+// removeu um evento cancelado do lado de lá) — ver Main.js. Mescla por id: o
+// que foi editado aqui mais recentemente (updatedAt mais novo) permanece,
+// pelo mesmo motivo do notes-updated acima.
+function mergeEventsFromMain(incoming) {
+    const localById = new Map(data.events.map(e => [e.id, e]));
+    data.events = incoming.map(inc => {
+        const local = localById.get(inc.id);
+        return local && (local.updatedAt || 0) > (inc.updatedAt || 0) ? local : inc;
+    });
+}
+
 window.api.on("events-updated", (events) => {
-    data.events = events;
-    if (activeTab === "eventos") renderBoard();
+    applyRemoteUpdate(() => mergeEventsFromMain(events));
 });
 
 /* ═══════════════════════════════  BOOT  ══════════════════════════════════ */
@@ -1833,9 +1966,13 @@ const VALID_TABS = new Set(["notas", "listas", "eventos"]);
 window.api.invoke("get-data").then(loaded => {
     data = {
         notes: [], lists: [], events: [], tags: [],
-        tamagotchi: { level: 1, xp: 0, vida: 100, fome: 100, carencia: 100, higiene: 100, lastUpdate: Date.now(), lastInteraction: Date.now() },
+        tamagotchi: {
+        level: 1, xp: 0, vida: 100, fome: 100, carencia: 100, higiene: 100,
+        lastUpdate: Date.now(), lastInteraction: Date.now(), lastCarenciaUpdate: Date.now()
+    },
         ...loaded
     };
+    booted = true;
     applySettings(data.settings);
     setContainerMode(data.widget?.collapsed !== false);
     const savedTab = data.widget?.activeTab;
@@ -1843,4 +1980,10 @@ window.api.invoke("get-data").then(loaded => {
     applyTamaDecay();
     updateTamaUI();
     scheduleTamaSave();
+
+    if (pendingQuickCreate) {
+        const type = pendingQuickCreate;
+        pendingQuickCreate = null;
+        runQuickCreate(type);
+    }
 });

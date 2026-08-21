@@ -48,14 +48,49 @@
         return toISODate(dt);
     }
 
-    // Primeira ocorrência (a partir de event.date) ainda não confirmada em
+    // Dias inteiros de 'fromISO' até 'toISO' (negativo se toISO for antes).
+    // Date.UTC dos dois lados pra não sofrer com horário de verão no meio.
+    function daysBetween(fromISO, toISO) {
+        const [fy, fm, fd] = fromISO.split("-").map(Number);
+        const [ty, tm, td] = toISO.split("-").map(Number);
+        return Math.round((Date.UTC(ty, tm - 1, td) - Date.UTC(fy, fm - 1, fd)) / 86400000);
+    }
+
+    function addDays(dateStr, days) {
+        const [y, m, d] = dateStr.split("-").map(Number);
+        return toISODate(new Date(y, m - 1, d + days));
+    }
+
+    // Empurra a ocorrência até alcançar hoje. Diário/semanal fazem a conta de
+    // uma vez (um evento diário de anos atrás daria milhares de voltas num
+    // laço); mensal/anual iteram, que são poucas voltas por natureza.
+    function fastForwardToToday(occ, recurrence, today) {
+        const behind = daysBetween(occ, today);
+        if (behind <= 0) return occ;
+        if (recurrence === "daily" || recurrence === "weekly") {
+            const step = recurrence === "daily" ? 1 : 7;
+            return addDays(occ, Math.ceil(behind / step) * step);
+        }
+        let guard = 0;
+        while (occ && occ < today && guard++ < 2000) occ = addInterval(occ, recurrence);
+        return occ;
+    }
+
+    // Primeira ocorrência ainda "em aberto": nem já passou, nem confirmada em
     // completedDates. null = evento não recorrente já concluído.
-    function getNextOccurrence(event) {
+    //
+    // Evento RECORRENTE pula sozinho as ocorrências cuja data já passou --
+    // sem isso ele ficava travado na primeira data até o usuário marcar
+    // aquela ocorrência como feita, e o alarme (que compara com
+    // evt.lastNotified, ver Main.js) só tocava uma vez na vida.
+    // Evento ÚNICO atrasado continua aparecendo como atrasado de propósito:
+    // ali a data que passou é justamente o que precisa chamar atenção.
+    function getNextOccurrence(event, today = todayISO()) {
         const completed = event.completedDates || [];
         if (!event.recurrence || event.recurrence === "none") {
             return completed.includes(event.date) ? null : event.date;
         }
-        let occ = event.date;
+        let occ = fastForwardToToday(event.date, event.recurrence, today);
         let guard = 0;
         while (occ && completed.includes(occ) && guard++ < 2000) {
             occ = addInterval(occ, event.recurrence);
@@ -115,7 +150,8 @@
     }
 
     return {
-        pad, toISODate, todayISO, addInterval, getNextOccurrence, occurrenceDateTime,
+        pad, toISODate, todayISO, addInterval, addDays, daysBetween,
+        getNextOccurrence, occurrenceDateTime,
         compareByOccurrence, nextBirthdayOccurrence, ageAtOccurrence
     };
 });

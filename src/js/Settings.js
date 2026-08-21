@@ -1,17 +1,54 @@
 /* ──────────────────────────────  Settings.js  ────────────────────────────── */
 // Renderer da janela de Configurações.
 
+Log.iniciar("configuracoes");
+
 let settings = { theme: "gold", transparency: 60, shortcuts: {}, alarm: { enabled: true, volume: 70, sound: "sininho" } };
 let recordingAction = null;
+
+// Enquanto o get-data do boot não voltar, `birthdays` e `tags` ainda são
+// arrays vazios. Um save disparado nesse intervalo mandaria a lista vazia
+// pro main, que trata item ausente como EXCLUÍDO (ver mergeMainOwnedList em
+// Main.js) -- caminho real: bandeja -> "Novo aniversariante" com esta janela
+// fechada, que abre a janela e manda o quick-create logo depois do
+// did-finish-load, sem garantia de que o get-data já respondeu.
+let booted = false;
 
 const themeButtons   = document.querySelectorAll(".theme-swatch");
 const slider         = document.getElementById("transparency-slider");
 const sliderValue    = document.getElementById("transparency-value");
 const hint           = document.getElementById("shortcut-hint");
-const recorders      = {
-    toggleWidget: document.getElementById("rec-toggleWidget"),
-    quickCapture: document.getElementById("rec-quickCapture")
+// Dois grupos de atalho, gravados em campos diferentes das configurações:
+// os globais vão para o sistema (globalShortcut em Main.js); os do editor
+// são tratados dentro do contenteditable e por isso podem repetir
+// combinações que outros programas já usam. A mecânica de gravar é a mesma,
+// só muda onde o valor é salvo.
+const GRUPOS_ATALHO = {
+    shortcuts: {
+        toggleWidget: document.getElementById("rec-toggleWidget"),
+        quickCapture: document.getElementById("rec-quickCapture"),
+        newNoteWindow: document.getElementById("rec-newNoteWindow")
+    },
+    editorShortcuts: {
+        negrito: document.getElementById("rec-negrito"),
+        italico: document.getElementById("rec-italico"),
+        sublinhado: document.getElementById("rec-sublinhado"),
+        lista: document.getElementById("rec-lista"),
+        listaNumerada: document.getElementById("rec-listaNumerada")
+    }
 };
+
+const recorders = {};    // ação -> botão
+const grupoDaAcao = {};  // ação -> em qual campo das configurações ela mora
+for (const [grupo, mapa] of Object.entries(GRUPOS_ATALHO)) {
+    for (const [acao, btn] of Object.entries(mapa)) {
+        recorders[acao] = btn;
+        grupoDaAcao[acao] = grupo;
+    }
+}
+
+const editorFontSize = document.getElementById("editor-font-size");
+const editorIndent   = document.getElementById("editor-indent");
 const alarmEnabledToggle = document.getElementById("alarm-enabled-toggle");
 const alarmVolumeSlider  = document.getElementById("alarm-volume-slider");
 const alarmVolumeValue   = document.getElementById("alarm-volume-value");
@@ -22,26 +59,43 @@ function saveSettings(partial) {
         ...settings,
         ...partial,
         shortcuts: { ...settings.shortcuts, ...partial.shortcuts },
+        editor: { ...settings.editor, ...partial.editor },
+        editorShortcuts: { ...settings.editorShortcuts, ...partial.editorShortcuts },
         alarm: { ...settings.alarm, ...partial.alarm }
     };
     window.api.send("save-settings", partial);
 }
+
+// Cada save volta como broadcast apply-settings (o main avisa todas as
+// janelas), inclusive esta. Reaplicar um controle que o usuário está mexendo
+// AGORA faz o slider pular pro valor de um instante atrás no meio do
+// arrasto -- por isso o que está em foco fica de fora. A lista de sons, pelo
+// mesmo motivo, só é redesenhada quando o som selecionado muda de verdade.
+let renderedAlarmSound = null;
 
 function applyToUI(s) {
     settings = s;
     document.documentElement.dataset.theme = s.theme;
     themeButtons.forEach(btn => btn.classList.toggle("selected", btn.dataset.theme === s.theme));
 
-    slider.value = s.transparency;
-    sliderValue.textContent = `${s.transparency}%`;
+    if (document.activeElement !== slider) {
+        slider.value = s.transparency;
+        sliderValue.textContent = `${s.transparency}%`;
+    }
 
     alarmEnabledToggle.checked = !!s.alarm?.enabled;
-    alarmVolumeSlider.value = s.alarm?.volume ?? 70;
-    alarmVolumeValue.textContent = `${alarmVolumeSlider.value}%`;
-    renderAlarmSoundList();
+    if (document.activeElement !== alarmVolumeSlider) {
+        alarmVolumeSlider.value = s.alarm?.volume ?? 70;
+        alarmVolumeValue.textContent = `${alarmVolumeSlider.value}%`;
+    }
+    if (renderedAlarmSound !== (s.alarm?.sound ?? null)) renderAlarmSoundList();
 
-    recorders.toggleWidget.textContent = s.shortcuts.toggleWidget || "(nenhum)";
-    recorders.quickCapture.textContent = s.shortcuts.quickCapture || "(nenhum)";
+    Object.entries(recorders).forEach(([action, btn]) => {
+        btn.textContent = (s[grupoDaAcao[action]] || {})[action] || "(nenhum)";
+    });
+
+    if (document.activeElement !== editorFontSize) editorFontSize.value = String(s.editor?.fontSize ?? 15);
+    if (document.activeElement !== editorIndent) editorIndent.value = String(s.editor?.indentSize ?? 4);
 }
 
 /* ─────────────────────────────────  Temas  ──────────────────────────────── */
@@ -84,6 +138,7 @@ let stopAlarmPreview = null;
 const ALARM_SOUND_ICONS = { sininho: "bell", caixinha: "music", passarinho: "bird", classico: "alarm-clock" };
 
 function renderAlarmSoundList() {
+    renderedAlarmSound = settings.alarm?.sound ?? null;
     alarmSoundList.innerHTML = "";
     Object.entries(AlarmSounds.SOUNDS).forEach(([key, sound]) => {
         const row = document.createElement("div");
@@ -105,6 +160,32 @@ function renderAlarmSoundList() {
         alarmSoundList.appendChild(row);
     });
 }
+
+/* ─────────────────────────────  Editor de texto  ─────────────────────────── */
+
+const TAMANHOS_EDITOR = [12, 13, 14, 15, 16, 18, 20, 22];
+const INDENTS_EDITOR = [2, 4, 8];
+
+function preencherSelect(el, valores, rotulo) {
+    el.innerHTML = "";
+    for (const valor of valores) {
+        const op = document.createElement("option");
+        op.value = String(valor);
+        op.textContent = rotulo(valor);
+        el.appendChild(op);
+    }
+}
+
+preencherSelect(editorFontSize, TAMANHOS_EDITOR, v => v + " px");
+preencherSelect(editorIndent, INDENTS_EDITOR, v => v + (v === 1 ? " espaço" : " espaços"));
+
+editorFontSize.addEventListener("change", () => {
+    saveSettings({ editor: { fontSize: Number(editorFontSize.value) } });
+});
+
+editorIndent.addEventListener("change", () => {
+    saveSettings({ editor: { indentSize: Number(editorIndent.value) } });
+});
 
 /* ────────────────────────────────  Atalhos  ──────────────────────────────── */
 
@@ -140,7 +221,7 @@ function stopRecording(restoreLabel = true) {
     if (!recordingAction) return;
     const btn = recorders[recordingAction];
     btn.classList.remove("recording");
-    if (restoreLabel) btn.textContent = settings.shortcuts[recordingAction] || "(nenhum)";
+    if (restoreLabel) btn.textContent = (settings[grupoDaAcao[recordingAction]] || {})[recordingAction] || "(nenhum)";
     recordingAction = null;
 }
 
@@ -173,7 +254,75 @@ window.addEventListener("keydown", (e) => {
     stopRecording(false);
     hint.textContent = "Clique num atalho e pressione a combinação desejada (precisa de Ctrl, Alt ou Shift).";
     hint.classList.remove("error");
-    saveSettings({ shortcuts: { [action]: accelerator } });
+    // Vai para settings.shortcuts ou settings.editorShortcuts, conforme o
+    // grupo a que a ação pertence (ver GRUPOS_ATALHO).
+    saveSettings({ [grupoDaAcao[action]]: { [action]: accelerator } });
+});
+
+/* ═══════════  CARD RECÉM-CRIADO QUE NINGUÉM CHEGOU A PREENCHER  ═══════════ */
+// "+ Novo aniversariante" e "+ Nova tag" já criam o card com um nome padrão.
+// Clicar algumas vezes sem preencher deixava uma pilha de "Novo
+// aniversariante"/"Nova tag" sem conteúdo real. O card que nasceu e ninguém
+// tocou some sozinho em quatro momentos: quando o foco sai dele, quando
+// outro é criado, ao trocar de aba e ao fechar a janela.
+//
+// "Tocou" é comparação com o estado de criação (nome padrão, categoria
+// vazia, data/cor iguais às do nascimento) em vez de uma marcação de
+// "sujo" -- assim não depende de lembrar de marcar em cada campo novo que
+// venha a existir. Só um card por tipo pode estar nesse estado por vez:
+// criar outro descarta o anterior.
+const NEW_BIRTHDAY_NAME = "Novo aniversariante";
+const NEW_TAG_NAME = "Nova tag";
+
+let pristine = { birthdayId: null, birthdayDate: null, tagId: null, tagColor: null };
+
+function discardPristineBirthday() {
+    const id = pristine.birthdayId;
+    const date = pristine.birthdayDate;
+    if (!id) return;
+    pristine.birthdayId = null;
+    pristine.birthdayDate = null;
+
+    const b = birthdays.find(x => x.id === id);
+    if (!b) return;
+    if (b.name !== NEW_BIRTHDAY_NAME || b.category || b.date !== date) return; // foi preenchido
+
+    birthdays = birthdays.filter(x => x.id !== id);
+    bdayExpanded.delete(id);
+    scheduleBdaySave();
+    renderBdayBoard();
+}
+
+function discardPristineTag() {
+    const id = pristine.tagId;
+    const color = pristine.tagColor;
+    if (!id) return;
+    pristine.tagId = null;
+    pristine.tagColor = null;
+
+    const t = tags.find(x => x.id === id);
+    if (!t) return;
+    if (t.name !== NEW_TAG_NAME || t.color !== color) return; // foi preenchido
+
+    tags = tags.filter(x => x.id !== id);
+    scheduleTagSave();
+    renderTagBoard();
+}
+
+function discardPristine() {
+    discardPristineBirthday();
+    discardPristineTag();
+}
+
+// Fechar a janela não espera o debounce de 400 ms dos saves — manda na hora.
+function flushPendingSaves() {
+    if (bdaySaveTimer) { clearTimeout(bdaySaveTimer); bdaySaveTimer = null; window.api.send("save-data", { birthdays }); }
+    if (tagSaveTimer) { clearTimeout(tagSaveTimer); tagSaveTimer = null; window.api.send("save-data", { tags }); }
+}
+
+window.addEventListener("beforeunload", () => {
+    discardPristine();
+    flushPendingSaves();
 });
 
 /* ══════════════════════════════  ABAS DO SETTINGS  ════════════════════════ */
@@ -181,6 +330,7 @@ window.addEventListener("keydown", (e) => {
 const stabButtons = document.querySelectorAll(".stab-btn");
 
 function setSettingsTab(tab) {
+    discardPristine();
     stabButtons.forEach(btn => btn.classList.toggle("active", btn.dataset.stab === tab));
     document.querySelectorAll(".stab-panel").forEach(panel =>
         panel.classList.toggle("active", panel.id === `stab-${tab}`));
@@ -202,35 +352,10 @@ const bdayNewBtn = document.getElementById("bday-new-btn");
 const BIRTHDAY_CATEGORY_LABELS = { "": "Sem categoria", familia: "Família", amigo: "Amigo", trabalho: "Trabalho" };
 const BIRTHDAY_CATEGORY_ICONS = { familia: "users", amigo: "user", trabalho: "briefcase" };
 
-function newId() { return crypto.randomUUID(); }
+// Compartilhadas com o widget — ver UiUtils.js.
+const { newId, escapeHtml, formatBR, armDeleteConfirm, clickStartedInside } = UiUtils;
+
 function now() { return Date.now(); }
-
-function escapeHtml(str) {
-    const div = document.createElement("div");
-    div.textContent = str ?? "";
-    return div.innerHTML;
-}
-
-function formatBR(iso) {
-    const [, m, d] = iso.split("-");
-    return `${d}/${m}`;
-}
-
-// Sem window.confirm() aqui também, por consistência com o widget (ver
-// Widget.js) — dois cliques no próprio botão em vez de diálogo bloqueante.
-function armDeleteConfirm(btn, onConfirm) {
-    if (btn.classList.contains("confirm-armed")) {
-        clearTimeout(btn._armTimer);
-        onConfirm();
-        return;
-    }
-    btn.classList.add("confirm-armed");
-    btn.textContent = "?";
-    btn._armTimer = setTimeout(() => {
-        btn.classList.remove("confirm-armed");
-        btn.innerHTML = Icons.svg("x", 12);
-    }, 2500);
-}
 
 function birthdayBadge(dateStr) {
     const occ = EventUtils.nextBirthdayOccurrence(dateStr);
@@ -244,6 +369,7 @@ function birthdayBadge(dateStr) {
 
 let bdaySaveTimer = null;
 function scheduleBdaySave() {
+    if (!booted) return; // ver comentário de `booted` no topo do arquivo
     clearTimeout(bdaySaveTimer);
     bdaySaveTimer = setTimeout(() => window.api.send("save-data", { birthdays }), 400);
 }
@@ -313,15 +439,35 @@ function birthdayCardNode(birthday) {
     }
     refreshPreview();
 
-    card.querySelector(".card-header").addEventListener("click", () => {
+    // Foco saiu do card inteiro e ele continua exatamente como nasceu -> some
+    // sozinho (ver "CARD RECÉM-CRIADO" acima). clickStartedInside evita
+    // descartar no mousedown de um clique que é dentro do próprio card.
+    card.addEventListener("focusout", () => {
+        setTimeout(() => {
+            if (pristine.birthdayId !== birthday.id) return;
+            if (card.contains(document.activeElement)) return;
+            if (clickStartedInside(card)) return;
+            discardPristineBirthday();
+        }, 0);
+    });
+
+    card.querySelector(".card-header").addEventListener("click", (e) => {
+        if (e.detail > 1) return; // 2º clique do duplo-clique — quem trata é o dblclick
         card.classList.toggle("expanded");
         if (card.classList.contains("expanded")) bdayExpanded.add(birthday.id);
         else bdayExpanded.delete(birthday.id);
     });
 
     const title = card.querySelector(".card-title");
+    RichEditor.ligarSetas(title);
     title.addEventListener("dblclick", (e) => {
         e.stopPropagation();
+        // O 1º clique do duplo-clique pode ter recolhido o card. Reabre antes
+        // de editar: quem dá dois cliques no nome quer renomear, não fechar.
+        if (!card.classList.contains("expanded")) {
+            card.classList.add("expanded");
+            bdayExpanded.add(birthday.id);
+        }
         title.contentEditable = "true";
         title.focus();
         document.execCommand("selectAll", false, null);
@@ -371,11 +517,14 @@ function birthdayCardNode(birthday) {
 }
 
 function createBirthday() {
+    discardPristine(); // o "+ Novo" anterior que ficou em branco não fica pra trás
     const birthday = {
-        id: newId(), name: "Novo aniversariante", date: EventUtils.todayISO(), category: "",
+        id: newId(), name: NEW_BIRTHDAY_NAME, date: EventUtils.todayISO(), category: "",
         createdAt: now(), updatedAt: now()
     };
     birthdays.push(birthday);
+    pristine.birthdayId = birthday.id;
+    pristine.birthdayDate = birthday.date;
     scheduleBdaySave();
     renderBdayBoard();
     bdayExpanded.add(birthday.id);
@@ -391,8 +540,13 @@ function createBirthday() {
 
 bdayNewBtn.addEventListener("click", createBirthday);
 
+// Criar antes do boot terminar montaria o aniversariante sobre o array vazio
+// e ele sumiria quando o get-data chegasse -- guarda e executa depois.
+let pendingQuickCreate = false;
+
 window.api.on("quick-create", (type) => {
     if (type !== "aniversario") return;
+    if (!booted) { pendingQuickCreate = true; return; }
     setSettingsTab("aniversarios");
     createBirthday();
 });
@@ -405,6 +559,7 @@ const tagNewBtn = document.getElementById("tag-new-btn");
 
 let tagSaveTimer = null;
 function scheduleTagSave() {
+    if (!booted) return; // ver comentário de `booted` no topo do arquivo
     clearTimeout(tagSaveTimer);
     tagSaveTimer = setTimeout(() => window.api.send("save-data", { tags }), 400);
 }
@@ -431,7 +586,7 @@ function tagCardNode(tag) {
     card.innerHTML = `
         <div class="card-delete" title="Excluir tag">${Icons.svg("x", 12)}</div>
         <div class="tag-name-row">
-            <span class="tag-color-dot" style="background:#${tag.color}"></span>
+            <span class="tag-color-dot" style="background:#${TagUtils.corSegura(tag.color)}"></span>
             <span class="tag-name" contenteditable="false" spellcheck="false">${escapeHtml(tag.name)}</span>
         </div>
         <div class="tag-swatches">
@@ -441,7 +596,19 @@ function tagCardNode(tag) {
         </div>
     `;
 
+    // Mesma regra dos aniversariantes: tag que nasceu e ninguém preencheu
+    // some quando o foco sai dela (ver "CARD RECÉM-CRIADO" acima).
+    card.addEventListener("focusout", () => {
+        setTimeout(() => {
+            if (pristine.tagId !== tag.id) return;
+            if (card.contains(document.activeElement)) return;
+            if (clickStartedInside(card)) return;
+            discardPristineTag();
+        }, 0);
+    });
+
     const nameEl = card.querySelector(".tag-name");
+    RichEditor.ligarSetas(nameEl);
     // Um clique só (não dois) -- diferente do título de nota/lista/evento, a
     // tag não tem nada mais reagindo ao clique aqui (não expande/recolhe
     // nada), então dblclick só criava uma pegadinha: o cursor já diz "text"
@@ -468,7 +635,7 @@ function tagCardNode(tag) {
 
     card.querySelectorAll(".tag-swatch").forEach(btn => {
         btn.addEventListener("click", () => {
-            tag.color = btn.dataset.hex;
+            tag.color = TagUtils.corSegura(btn.dataset.hex);
             card.querySelector(".tag-color-dot").style.background = `#${tag.color}`;
             card.querySelectorAll(".tag-swatch").forEach(b => b.classList.toggle("selected", b === btn));
             scheduleTagSave();
@@ -489,10 +656,13 @@ function tagCardNode(tag) {
 }
 
 function createTag() {
+    discardPristine(); // o "+ Nova" anterior que ficou em branco não fica pra trás
     const usedColors = tags.map(t => t.color);
     const color = TagUtils.PALETTE.find(hex => !usedColors.includes(hex)) || TagUtils.PALETTE[tags.length % TagUtils.PALETTE.length];
-    const tag = { id: newId(), name: "Nova tag", color };
+    const tag = { id: newId(), name: NEW_TAG_NAME, color };
     tags.push(tag);
+    pristine.tagId = tag.id;
+    pristine.tagColor = tag.color;
     scheduleTagSave();
     renderTagBoard();
     const card = tagBoard.querySelector(`.card[data-id="${tag.id}"]`);
@@ -582,19 +752,109 @@ window.api.on("apply-settings", (s) => { if (!recordingAction) applyToUI(s); });
 
 // Sincronização com o Google Agenda alterou os aniversariantes (criou o
 // vínculo googleEventId ou removeu um cancelado do lado de lá) -- ver Main.js.
-window.api.on("birthdays-updated", (updated) => {
-    birthdays = updated;
+// Igual ao widget: mescla por id preferindo o que foi editado aqui mais
+// recentemente, e espera o foco sair antes de redesenhar, senão o card em
+// edição é destruído no meio da digitação. Os campos de propriedade do main
+// (googleEventId etc.) não se perdem ao manter o objeto local -- o próprio
+// main os repõe no save (ver mergeMainOwnedList em Main.js).
+let pendingBdayUpdate = null;
+
+function isEditingBdayBoard() {
+    const el = document.activeElement;
+    if (!el || !bdayBoard.contains(el)) return false;
+    return el.isContentEditable || el.tagName === "INPUT" || el.tagName === "SELECT";
+}
+
+function applyBdayUpdate(fn) {
+    if (isEditingBdayBoard()) { pendingBdayUpdate = fn; return; }
+    fn();
     renderBdayBoard();
+}
+
+document.addEventListener("focusout", () => setTimeout(() => {
+    if (!pendingBdayUpdate || isEditingBdayBoard()) return;
+    const fn = pendingBdayUpdate;
+    pendingBdayUpdate = null;
+    fn();
+    renderBdayBoard();
+}, 0));
+
+window.api.on("birthdays-updated", (updated) => {
+    applyBdayUpdate(() => {
+        const localById = new Map(birthdays.map(b => [b.id, b]));
+        birthdays = updated.map(inc => {
+            const local = localById.get(inc.id);
+            return local && (local.updatedAt || 0) > (inc.updatedAt || 0) ? local : inc;
+        });
+    });
 });
 
 window.api.invoke("get-data").then(loaded => {
+    booted = true;
     applyToUI(loaded.settings);
     birthdays = loaded.birthdays || [];
     renderBdayBoard();
     tags = loaded.tags || [];
     renderTagBoard();
+
+    if (pendingQuickCreate) {
+        pendingQuickCreate = false;
+        setSettingsTab("aniversarios");
+        createBirthday();
+    }
 });
 
 window.api.invoke("get-app-version").then(version => {
     document.getElementById("app-version").textContent = `v${version}`;
+    document.getElementById("app-version-inline").textContent = `v${version}`;
+});
+
+/* ══════════════════════════════  ATUALIZAÇÕES  ════════════════════════════ */
+// Só consulta e avisa; quem baixa é o usuário (ver UpdateChecker.js).
+
+const updateStatus   = document.getElementById("update-status");
+const updateHint     = document.getElementById("update-hint");
+const updateCheckBtn = document.getElementById("update-check-btn");
+const updateDownloadBtn = document.getElementById("update-download-btn");
+
+let updateUrl = null;
+
+function applyUpdateResult(result) {
+    if (!result.ok) {
+        updateHint.textContent = "Não foi possível verificar agora: " + (result.error || "erro desconhecido")
+            + ". Sem internet ou atrás de um proxy, isso é esperado.";
+        updateDownloadBtn.classList.add("hidden");
+        return;
+    }
+    if (result.noReleases) {
+        updateHint.textContent = "Nenhuma versão publicada ainda no GitHub para comparar.";
+        updateDownloadBtn.classList.add("hidden");
+        return;
+    }
+    if (result.updateAvailable) {
+        updateStatus.innerHTML = `Versão <b>${escapeHtml(result.latest)}</b> disponível — você está na v${escapeHtml(result.current)}`;
+        updateHint.textContent = "O download é manual: o botão abaixo abre a página do release no navegador.";
+        updateUrl = result.url;
+        updateDownloadBtn.classList.remove("hidden");
+        return;
+    }
+    updateStatus.textContent = `Versão instalada: v${result.current}`;
+    updateHint.textContent = `Você já está na versão mais recente (${result.latest}).`;
+    updateDownloadBtn.classList.add("hidden");
+}
+
+updateCheckBtn.addEventListener("click", async () => {
+    updateCheckBtn.disabled = true;
+    updateCheckBtn.textContent = "Verificando...";
+    updateHint.textContent = "Consultando os releases no GitHub...";
+    try {
+        applyUpdateResult(await window.api.invoke("check-update"));
+    } finally {
+        updateCheckBtn.disabled = false;
+        updateCheckBtn.textContent = "Verificar";
+    }
+});
+
+updateDownloadBtn.addEventListener("click", () => {
+    if (updateUrl) window.api.send("open-link", updateUrl);
 });

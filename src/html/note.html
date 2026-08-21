@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <meta http-equiv="Content-Security-Policy" content="
+    default-src 'none';
+    script-src 'self';
+    style-src 'self' 'unsafe-inline';
+    img-src 'self' data:;
+    font-src 'self';
+  " />
+  <title>Nota — Note-Chan</title>
+  <link rel="stylesheet" href="css/Theme.css" />
+  <link rel="stylesheet" href="css/note_style.css" />
+  <link rel="stylesheet" href="css/rich.css" />
+</head>
+<body>
+  <div id="note-window">
+    <div id="note-dragbar">
+      <span id="note-dragbar-icon"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 22a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h8a2.4 2.4 0 0 1 1.704.706l3.588 3.588A2.4 2.4 0 0 1 20 8v12a2 2 0 0 1-2 2z"/><path d="M14 2v5a1 1 0 0 0 1 1h5"/><path d="M10 9H8"/><path d="M16 13H8"/><path d="M16 17H8"/></svg></span>
+      <span id="note-dragbar-title">Nota</span>
+      <div id="note-window-btns">
+        <button class="window-btn" id="note-minbtn" title="Minimizar">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M5 12h14"/></svg>
+        </button>
+        <button class="window-btn" id="note-closebtn" title="Fechar (Esc)">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
+        </button>
+      </div>
+    </div>
+
+    <input type="text" id="note-title" placeholder="Título da nota" spellcheck="false" autocomplete="off" />
+    <div id="note-toolbar"></div>
+    <div id="note-content" class="nc-rico" contenteditable="true" spellcheck="false" data-placeholder="Escreva aqui..."></div>
+
+    <div id="note-status">
+      <span id="note-counts"></span>
+      <span id="note-saved"></span>
+    </div>
+  </div>
+
+  <script src="../js/Logger.js"></script>
+  <script src="../js/Icons.js"></script>
+  <script src="../js/RichText.js"></script>
+  <script src="../js/RichEditor.js"></script>
+  <script src="../js/Note.js"></script>
+</body>
+</html>

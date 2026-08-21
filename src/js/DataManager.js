@@ -5,11 +5,33 @@ const fs = require("fs");
 const path = require("path");
 const PATHS = require("./Paths");
 const { log, warn } = require("./Logger");
+const RichText = require("./RichText");
 
 const MAX_DAILY_BACKUPS = 14;
 
+// 1 -> 2: o conteúdo da nota era texto puro num <textarea> e passou a ser
+// HTML, porque negrito, alinhamento e tamanho de fonte não cabem em texto
+// cru (ver RichText.js). A conversão é sem perda: cada linha vira uma <div>
+// e os caracteres < > & são escapados, então uma nota que falava de HTML
+// continua mostrando as tags como texto em vez de interpretá-las.
+const SCHEMA_VERSION = 2;
+
+function migrarNotasParaHtml(notas) {
+    if (!Array.isArray(notas)) return 0;
+    let convertidas = 0;
+    for (const nota of notas) {
+        if (typeof nota.content !== "string") { nota.content = ""; continue; }
+        nota.content = RichText.fromPlainText(nota.content);
+        convertidas++;
+    }
+    return convertidas;
+}
+
 function defaultData() {
     return {
+        // Versão do FORMATO do arquivo (não a do app). Sobe quando um campo
+        // muda de significado e exige conversão -- ver migrarNotasParaHtml.
+        schemaVersion: SCHEMA_VERSION,
         notes: [],
         lists: [],
         events: [],
@@ -27,17 +49,41 @@ function defaultData() {
             fome: 100,
             carencia: 100,
             higiene: 100,
-            lastUpdate: Date.now(),      // referência do decaimento de fome/higiene (tempo puro)
-            lastInteraction: Date.now(), // referência do decaimento de carência (uso do app)
-            lastLowNotified: {}          // { fome, higiene, carencia, vida } -> timestamp do último aviso (main)
+            lastUpdate: Date.now(),         // referência do decaimento de fome/higiene (tempo puro)
+            lastInteraction: Date.now(),    // última interação de verdade do usuário (uso do app)
+            lastCarenciaUpdate: Date.now(), // referência do decaimento de carência (ver applyTamaDecay)
+            lastLowNotified: {}             // { fome, higiene, carencia, vida } -> timestamp do último aviso (main)
         },
         widget: { collapsed: true, width: 320, height: 480, activeTab: "notas" },
+        // Tamanho da nota em janela ("modo bloco de notas") — uma preferência
+        // só, compartilhada por todas as janelas de nota (ver Main.js).
+        noteWindow: { width: 520, height: 460 },
+        // Verificação de versão (ver UpdateChecker.js): quando foi a última
+        // consulta e de qual versão nova o usuário já foi avisado.
+        updateCheck: { lastCheckAt: null, notifiedVersion: null },
         settings: {
             theme: "gold",
             transparency: 60,
+            // ATALHOS GLOBAIS: registrados no sistema (globalShortcut), valem
+            // com o Note-Chan em segundo plano.
             shortcuts: {
                 toggleWidget: "Control+Alt+N",
-                quickCapture: "Control+Alt+Q"
+                quickCapture: "Control+Alt+Q",
+                newNoteWindow: "Control+Alt+J"
+            },
+            // Preferências do editor de nota (ver RichEditor.js). fontSize em
+            // pixel; indentSize é quantos espaços o TAB insere fora de lista.
+            editor: { fontSize: 15, indentSize: 4 },
+            // ATALHOS DO EDITOR: tratados dentro do contenteditable, NÃO
+            // registrados no sistema. Ctrl+B em globalShortcut roubaria o
+            // negrito de todo outro programa aberto no Windows -- por isso
+            // moram separados de settings.shortcuts.
+            editorShortcuts: {
+                negrito: "Control+B",
+                italico: "Control+I",
+                sublinhado: "Control+U",
+                lista: "Control+Shift+L",
+                listaNumerada: "Control+Shift+O"
             },
             alarm: { enabled: true, volume: 70, sound: "sininho" }
         }
@@ -61,12 +107,27 @@ function loadData() {
             ...defaults,
             ...parsed,
             widget: { ...defaults.widget, ...parsed.widget },
-            tamagotchi: { ...defaults.tamagotchi, ...parsed.tamagotchi },
+            noteWindow: { ...defaults.noteWindow, ...parsed.noteWindow },
+            updateCheck: { ...defaults.updateCheck, ...parsed.updateCheck },
+            tamagotchi: {
+                ...defaults.tamagotchi,
+                ...parsed.tamagotchi,
+                // Versão anterior não tinha lastCarenciaUpdate -- a carência
+                // era medida direto de lastInteraction. Herdar dela mantém o
+                // decaimento contínuo; sem isso o padrão (agora) entraria no
+                // lugar e o tempo com o app fechado seria perdoado, ao
+                // contrário do que acontece com fome/higiene.
+                lastCarenciaUpdate: parsed.tamagotchi?.lastCarenciaUpdate
+                    ?? parsed.tamagotchi?.lastInteraction
+                    ?? defaults.tamagotchi.lastCarenciaUpdate
+            },
             googleSync: { ...defaults.googleSync, ...parsed.googleSync },
             settings: {
                 ...defaults.settings,
                 ...parsed.settings,
                 shortcuts: { ...defaults.settings.shortcuts, ...parsed.settings?.shortcuts },
+                editor: { ...defaults.settings.editor, ...parsed.settings?.editor },
+                editorShortcuts: { ...defaults.settings.editorShortcuts, ...parsed.settings?.editorShortcuts },
                 alarm: {
                     ...defaults.settings.alarm,
                     // migra o antigo notificationsEnabled se essa versão ainda
@@ -80,6 +141,16 @@ function loadData() {
             }
         };
         delete merged.settings.notificationsEnabled;
+
+        // Arquivo de antes da versão 2 guarda nota como texto puro. Converte
+        // uma vez só; o próximo save já grava no formato novo. O .bak e os
+        // snapshots diários seguram o formato antigo caso precise voltar.
+        if ((parsed.schemaVersion || 1) < 2) {
+            const n = migrarNotasParaHtml(merged.notes);
+            if (n) log("[DATA] Migração de formato: " + n + " nota(s) de texto puro para HTML.");
+        }
+        merged.schemaVersion = SCHEMA_VERSION;
+
         log("[DATA] Carregado de", PATHS.data, "—", summarize(merged));
         return merged;
     } catch (e) {
@@ -140,7 +211,7 @@ function dailyBackupIfNeeded(data) {
     }
 }
 
-async function saveData(data) {
+async function writeAsync(data) {
     try {
         backupPrevious();
         await fs.promises.writeFile(`${PATHS.data}.tmp`, JSON.stringify(data, null, 2), "utf8");
@@ -150,6 +221,18 @@ async function saveData(data) {
     } catch (e) {
         warn("[DATA] Falha ao salvar data.json:", e.message);
     }
+}
+
+// Duas gravações sobrepostas disputariam o MESMO data.json.tmp (uma renomeia
+// o arquivo que a outra ainda está escrevendo). O debounce do Main.js cobre
+// rajadas curtas, não uma gravação lenta que ainda não terminou — então a
+// fila aqui é a garantia de verdade. writeAsync nunca rejeita, então a
+// corrente não quebra numa falha isolada.
+let writeQueue = Promise.resolve();
+
+function saveData(data) {
+    writeQueue = writeQueue.then(() => writeAsync(data));
+    return writeQueue;
 }
 
 function saveDataSync(data) {
