@@ -34,23 +34,6 @@ const timerSecondsEl   = document.getElementById("timer-seconds");
 const timerStartBtn    = document.getElementById("timer-start-btn");
 const timerResetBtn    = document.getElementById("timer-reset-btn");
 
-const tamaFab        = document.getElementById("tama-fab");
-const tamaFabSprite   = document.getElementById("tama-fab-sprite");
-const tamaOverlay     = document.getElementById("tama-overlay");
-const tamaBackBtn     = document.getElementById("tama-back-btn");
-const tamaLevelEl     = document.getElementById("tama-level");
-const tamaXpFill      = document.getElementById("tama-xp-fill");
-const tamaStage       = document.getElementById("tama-stage");
-const tamaSprite      = document.getElementById("tama-sprite");
-const tamaTabButtons  = document.querySelectorAll(".tama-tab-btn");
-const tamaActionsEl   = document.getElementById("tama-actions");
-const tamaBarEls = {
-    vida: document.getElementById("tama-bar-vida"),
-    fome: document.getElementById("tama-bar-fome"),
-    carencia: document.getElementById("tama-bar-carencia"),
-    higiene: document.getElementById("tama-bar-higiene")
-};
-
 /* ══════════════════════════════  PERSISTÊNCIA  ══════════════════════════ */
 
 // Enquanto o get-data do boot não voltar, `data` ainda são os arrays vazios
@@ -197,7 +180,7 @@ function isSearchOpen() {
 
 function openSearch() {
     closeTimerPanel();
-    closeTama();
+    tama.fechar();
     searchBar.classList.add("open");
     searchInput.focus();
     searchInput.select();
@@ -429,7 +412,7 @@ timerResetBtn.addEventListener("click", resetTimer);
 
 function openTimerPanel() {
     closeSearch();
-    closeTama();
+    tama.fechar();
     timerPanel.classList.add("open");
 }
 
@@ -459,311 +442,22 @@ updateDurationRowVisibility();
 refreshTimerDisplay();
 
 /* ═══════════════════════════  BICHINHO VIRTUAL  ═══════════════════════════ */
-// Base simples pra evoluir depois: 4 status (vida/fome/carência/higiene) que
-// decaem com o tempo real (recalculado a partir de lastUpdate, não por tick
-// contínuo -- assim funciona certo mesmo se o widget ficar fechado/em
-// segundo plano por horas), nível por XP acumulado, e 3 abas de interação
-// que alimentam/brincam/limpam. O personagem é desenhado num grid de pixels
-// (SVG gerado por fórmula, sem imagem nenhuma) que muda de carinha conforme
-// o humor médio dos status.
-
-const TAMA_XP_PER_LEVEL = 100;
-
-// Cada status decai por um motivo diferente (ver applyTamaDecay):
-// fome/higiene caem só com o tempo passando (higiene mais devagar); carência
-// cai com a falta de INTERAÇÃO direta (abrir o app, brincar, cutucar o
-// bichinho), não com o relógio puro; vida não decai sozinha, só sofre se as
-// outras 3 ficarem ruins por muito tempo (ver applyTamaDecay), e se recupera
-// sozinha quando elas voltam ao normal.
-// Os três contam SÓ tempo de PC ligado com o app rodando (ver o salto grande
-// tratado em applyTamaDecay), então são horas de uso real, não de calendário.
-const TAMA_FOME_MIN_TO_ZERO = 24 * 60;     // 24h de uso sem comer
-const TAMA_HIGIENE_MIN_TO_ZERO = 60 * 60;  // 60h -- sempre foi a mais lenta das três
-const TAMA_CARENCIA_MIN_TO_ZERO = 30 * 60; // 30h sem interação nenhuma
-const TAMA_NEGLECT_THRESHOLD = 25;         // abaixo disso conta como "negligenciado"
-const TAMA_NORMAL_THRESHOLD = 50;          // acima disso conta como "normal" pra vida regenerar
-const TAMA_PET_COOLDOWN_MS = 3000;         // evita fazer carinho em rajada pra inflar carência
-const TAMA_LIVE_TICK_MS = 3 * 60 * 1000;   // recalcula decaimento periodicamente mesmo com o painel fechado
-
-// Salto maior que isso desde a última passada não é tempo de uso: é app
-// fechado, máquina dormindo/hibernando ou processo congelado pelo sistema.
-// Generoso de propósito (5x o tick) -- errar pra mais só faz contar alguns
-// minutos de sono como uso, o que é irrisório perto de 24h; errar pra menos
-// travaria o decaimento de vez, e aí o bichinho nunca sentiria fome.
-const TAMA_MAX_GAP_MS = 5 * TAMA_LIVE_TICK_MS;
-
-// Desenho do personagem (grid de pixels -> SVG) mora em TamaSprite.js,
-// compartilhado com o popup de alarme -- ver esse arquivo.
-const tamaSpriteSvg = TamaSprite.svg;
-const tamaMood = TamaSprite.mood;
-const tamaClamp = TamaSprite.clamp;
-
-// Recalcula os status a partir do tempo real decorrido desde a última vez
-// que foram tocados -- cobre tanto o app ter ficado fechado por horas quanto
-// o widget só ter ficado parado numa aba diferente. fome/higiene usam
-// lastUpdate (tempo puro); carência usa lastInteraction (só anda quando o
-// usuário de fato interage -- ver tamaRegisterInteraction).
-// Devolve se algum status mudou de verdade -- o tick periódico usa isso
-// para não gravar em disco a cada 3 minutos sem ter o que salvar.
-function applyTamaDecay() {
-    const tama = data.tamagotchi;
-    const now = Date.now();
-    const antes = tama.vida + tama.fome + tama.carencia + tama.higiene;
-
-    // Só conta o tempo em que o computador esteve de fato ligado com o app
-    // rodando: um buraco grande desde a última passada significa app fechado,
-    // PC dormindo ou processo congelado. Nesse caso reancora os relógios sem
-    // descontar nada -- voltar de um fim de semana não encontra o bichinho
-    // faminto, ele fica exatamente como foi deixado.
-    const gapMs = Math.max(
-        now - (tama.lastUpdate || now),
-        now - (tama.lastCarenciaUpdate || tama.lastInteraction || now)
-    );
-    if (gapMs > TAMA_MAX_GAP_MS) {
-        tama.lastUpdate = now;
-        tama.lastCarenciaUpdate = now;
-        return;
-    }
-
-    const elapsedMin = (now - (tama.lastUpdate || now)) / 60000;
-    if (elapsedMin > 0) {
-        tama.fome = tamaClamp(tama.fome - (elapsedMin / TAMA_FOME_MIN_TO_ZERO) * 100);
-        tama.higiene = tamaClamp(tama.higiene - (elapsedMin / TAMA_HIGIENE_MIN_TO_ZERO) * 100);
-        tama.lastUpdate = now;
-    }
-
-    // Carência precisa do próprio marcador de "última vez que o decaimento
-    // foi aplicado", igual lastUpdate faz pra fome/higiene. Medir sempre a
-    // partir de lastInteraction e SUBTRAIR o resultado do valor atual conta o
-    // mesmo tempo de novo a cada chamada: com o tick de 3 min a carência
-    // zerava em ~1h em vez das 10h projetadas. lastInteraction continua
-    // existindo como registro de quando o usuário de fato interagiu.
-    const carenciaElapsedMin = (now - (tama.lastCarenciaUpdate || tama.lastInteraction || now)) / 60000;
-    if (carenciaElapsedMin > 0) {
-        tama.carencia = tamaClamp(tama.carencia - (carenciaElapsedMin / TAMA_CARENCIA_MIN_TO_ZERO) * 100);
-        tama.lastCarenciaUpdate = now;
-    }
-
-    // Vida não decai pelo relógio puro -- só sofre quando algum dos outros 3
-    // fica abaixo do limiar POR TEMPO (o dano é proporcional a elapsedMin,
-    // então um mergulho rápido quase não pesa; só a negligência sustentada
-    // por horas de verdade acumula dano). Recupera sozinha quando os 3 estão
-    // acima do "normal" -- nenhuma ação cuida da vida diretamente.
-    const neglected = [tama.fome, tama.higiene, tama.carencia].filter(v => v < TAMA_NEGLECT_THRESHOLD).length;
-    if (neglected > 0 && elapsedMin > 0) {
-        tama.vida = tamaClamp(tama.vida - elapsedMin * 0.35 * neglected);
-    } else if (tama.fome >= TAMA_NORMAL_THRESHOLD && tama.higiene >= TAMA_NORMAL_THRESHOLD && tama.carencia >= TAMA_NORMAL_THRESHOLD) {
-        tama.vida = tamaClamp(tama.vida + elapsedMin * 0.15);
-    }
-    // nunca "morre" nessa versão base -- só fica bem mal cuidado visualmente.
-    tama.vida = Math.max(5, tama.vida);
-
-    return (tama.vida + tama.fome + tama.carencia + tama.higiene) !== antes;
-}
-
-// Marca que o usuário interagiu de verdade com o app/bichinho agora --
-// única coisa que "segura" o decaimento de carência (ver applyTamaDecay).
-function tamaRegisterInteraction() {
-    const now = Date.now();
-    data.tamagotchi.lastInteraction = now;
-    // zera também o relógio do decaimento, senão o tempo já "pago" antes da
-    // interação voltaria a ser descontado na próxima passada.
-    data.tamagotchi.lastCarenciaUpdate = now;
-}
-
-let tamaSaveTimer = null;
-function scheduleTamaSave() {
-    if (!booted) return; // mesmo motivo do scheduleSave
-    clearTimeout(tamaSaveTimer);
-    tamaSaveTimer = setTimeout(() => {
-        window.api.send("save-data", { tamagotchi: data.tamagotchi });
-    }, 400);
-}
-
-function updateTamaUI() {
-    const tama = data.tamagotchi;
-    const mood = tamaMood(tama);
-    const svg = tamaSpriteSvg(mood);
-
-    tamaSprite.innerHTML = svg;
-    tamaFabSprite.innerHTML = svg;
-
-    tamaLevelEl.textContent = `Nível ${tama.level}`;
-    const xpInLevel = tama.xp % TAMA_XP_PER_LEVEL;
-    tamaXpFill.style.width = `${(xpInLevel / TAMA_XP_PER_LEVEL) * 100}%`;
-
-    Object.entries(tamaBarEls).forEach(([key, el]) => {
-        const value = tama[key];
-        el.style.width = `${value}%`;
-        el.classList.toggle("tama-critical", value < 25);
-    });
-}
-
-function tamaGainXp(amount) {
-    const tama = data.tamagotchi;
-    tama.xp += amount;
-    tama.level = 1 + Math.floor(tama.xp / TAMA_XP_PER_LEVEL);
-}
-
-// Forma "de verdade" de matar a fome do bichinho: completar tarefas/eventos
-// nas outras abas (chamado pelos hooks de checkbox de item e de "marcar
-// evento como feito" mais abaixo). Comida na aba Comida é só bônus manual.
-function tamaOnTaskCompleted(fomeGain, xpGain) {
-    data.tamagotchi.fome = tamaClamp(data.tamagotchi.fome + fomeGain);
-    tamaGainXp(xpGain);
-    updateTamaUI();
-    scheduleTamaSave();
-}
-
-// { icon, label, stat, gain, interaction: true marca lastInteraction (conta
-// como "carência recuperada por atenção"), anim: classe de animação rápida
-// no palco, extra: [[outroStat, valor], ...] pra efeitos colaterais }.
-// Comida aqui é bônus manual/cosmético -- a forma "de verdade" de matar a
-// fome é completar tarefas/eventos nas outras abas (ver hooks mais abaixo).
-const TAMA_ACTIONS = {
-    comida: [
-        { icon: "apple", label: "Maçã", stat: "fome", gain: 5 },
-        { icon: "drumstick", label: "Ração", stat: "fome", gain: 10 },
-        { icon: "cake", label: "Bolo", stat: "fome", gain: 8, extra: [["carencia", 3]] }
-    ],
-    brinquedos: [
-        { icon: "circle", label: "Bola", stat: "carencia", gain: 15, interaction: true },
-        { icon: "wind", label: "Pipa", stat: "carencia", gain: 12, interaction: true, extra: [["fome", -3]] },
-        { icon: "gamepad-2", label: "Videogame", stat: "carencia", gain: 20, interaction: true, extra: [["higiene", -5]] }
-    ],
-    higiene: [
-        { icon: "shower-head", label: "Banho", stat: "higiene", gain: 30, anim: "tama-anim-clean" },
-        { icon: "sparkles", label: "Escovar dentes", stat: "higiene", gain: 12, anim: "tama-anim-clean" },
-        { icon: "scissors", label: "Cortar unhas", stat: "higiene", gain: 10, anim: "tama-anim-clean" }
-    ]
-};
-
-const TAMA_TAB_HINTS = {
-    comida: "A fome recupera sozinha quando você completa tarefas e eventos -- isso aqui é só um extra.",
-    brinquedos: "Brincar (e abrir o app, e cutucar o bichinho) é o que mantém a carência em dia.",
-    higiene: "Só o banho/escovação recupera a higiene."
-};
-
-let tamaActiveTab = "comida";
-let tamaActionsHint = null;
-
-function tamaPlayStageAnim(cls) {
-    tamaStage.classList.remove(cls);
-    // força reflow pra poder re-disparar a mesma animação em sequência
-    void tamaStage.offsetWidth;
-    tamaStage.classList.add(cls);
-    setTimeout(() => tamaStage.classList.remove(cls), 700);
-}
-
-function renderTamaActions() {
-    tamaActionsEl.innerHTML = "";
-
-    if (!tamaActionsHint) {
-        tamaActionsHint = document.createElement("div");
-        tamaActionsHint.id = "tama-actions-hint";
-    }
-    tamaActionsHint.textContent = TAMA_TAB_HINTS[tamaActiveTab] || "";
-    tamaActionsEl.appendChild(tamaActionsHint);
-
-    TAMA_ACTIONS[tamaActiveTab].forEach(action => {
-        const btn = document.createElement("button");
-        btn.type = "button";
-        btn.className = "tama-action-btn";
-        btn.innerHTML = `
-            <span class="tama-action-icon">${Icons.svg(action.icon, 18)}</span>
-            <span class="tama-action-label">${action.label}</span>
-            <span class="tama-action-gain">+${action.gain}</span>
-        `;
-        btn.addEventListener("click", () => {
-            const tama = data.tamagotchi;
-            tama[action.stat] = tamaClamp(tama[action.stat] + action.gain);
-            (action.extra || []).forEach(([stat, delta]) => {
-                tama[stat] = tamaClamp(tama[stat] + delta);
-            });
-            if (action.interaction) tamaRegisterInteraction();
-            if (action.anim) tamaPlayStageAnim(action.anim);
-            tamaGainXp(5);
-            updateTamaUI();
-            scheduleTamaSave();
-        });
-        tamaActionsEl.appendChild(btn);
-    });
-}
-
-function setTamaTab(tab) {
-    tamaActiveTab = tab;
-    tamaTabButtons.forEach(btn => btn.classList.toggle("active", btn.dataset.tab === tab));
-    renderTamaActions();
-}
-
-tamaTabButtons.forEach(btn => {
-    btn.addEventListener("click", () => setTamaTab(btn.dataset.tab));
-});
-
-function isTamaOpen() {
-    return container.classList.contains("tama-open");
-}
-
-function openTama() {
-    closeSearch();
-    closeTimerPanel();
-    applyTamaDecay();
-    updateTamaUI();
-    container.classList.add("tama-open");
-}
-
-function closeTama() {
-    if (!isTamaOpen()) return;
-    container.classList.remove("tama-open");
-    scheduleTamaSave();
-}
-
-// "Clicar nela" (no FAB ou no personagem dentro do painel) é uma das formas
-// de recuperar carência -- cooldown curto pra não dar pra inflar o status só
-// clicando em rajada.
-let tamaPetCooldownUntil = 0;
-function tamaPet() {
-    const now = Date.now();
-    if (now < tamaPetCooldownUntil) return;
-    tamaPetCooldownUntil = now + TAMA_PET_COOLDOWN_MS;
-    data.tamagotchi.carencia = tamaClamp(data.tamagotchi.carencia + 2);
-    tamaRegisterInteraction();
-    tamaPlayStageAnim("tama-anim-pet");
-    updateTamaUI();
-    scheduleTamaSave();
-}
-
-tamaFab.addEventListener("click", (e) => {
-    e.stopPropagation();
-    openTama();
-    tamaPet();
-});
-tamaSprite.addEventListener("click", (e) => {
-    e.stopPropagation();
-    tamaPet();
-});
-tamaBackBtn.addEventListener("click", (e) => {
-    e.stopPropagation();
-    closeTama();
-});
-
-renderTamaActions();
-
-// Recalcula e salva o decaimento periodicamente mesmo com o painel fechado
-// -- sem isso, o main só veria o status do bichinho tão fresco quanto a
-// última vez que o painel foi aberto, e as notificações de status baixo
-// (ver Main.js) ficariam paradas no tempo se o usuário nunca abrir a aba.
-setInterval(() => {
-    const mudou = applyTamaDecay();
-    if (isTamaOpen()) updateTamaUI();
-    if (mudou) scheduleTamaSave();
-}, TAMA_LIVE_TICK_MS);
-
-// Abre o painel do bichinho quando o usuário clica numa notificação sobre
-// ele (ver Main.js -> showPetNotification).
-window.api.on("open-tama", () => {
-    if (container.classList.contains("collapsed")) return; // main já expandiu antes de mandar isso
-    openTama();
+// O comportamento do bichinho mora em TamaPet.js: status, decaimento, painel
+// de interação e os ganchos que o alimentam. Daqui ele só recebe o que
+// precisa, em vez de compartilhar escopo com abas, cards, busca e cronômetro
+// como acontecia quando tudo isso morava neste arquivo.
+//
+// estaPronto é função, e não o valor de `booted`: o módulo nasce antes do
+// get-data voltar, e gravar nesse intervalo mandaria estado vazio pro main
+// (mesmo motivo do scheduleSave acima).
+//
+// aoAbrir existe porque busca, cronômetro e bichinho disputam o mesmo espaço
+// do painel e se excluem -- mas quem sabe disso é este arquivo, não o módulo.
+const tama = TamaPet.criar({
+    data,
+    container,
+    estaPronto: () => booted,
+    aoAbrir: () => { closeSearch(); closeTimerPanel(); }
 });
 
 /* ═════════════════════════════  CRIAÇÃO  ═════════════════════════════════ */
@@ -1173,7 +867,7 @@ function listItemNode(list, item, refreshPreview, insertItemAfter) {
         // BICHINHO VIRTUAL acima) -- só ao MARCAR como feito, não ao
         // desmarcar. Esse checkbox é compartilhado entre itens de lista e
         // checklist de evento, então cobre os dois.
-        if (item.done) tamaOnTaskCompleted(6, 3);
+        if (item.done) tama.aoCompletarTarefa(6, 3);
     });
 
     const text = li.querySelector(".item-text");
@@ -1597,7 +1291,7 @@ function eventCardNode(event) {
             if (!event.completedDates.includes(occ)) event.completedDates.push(occ);
             // Concluir um evento inteiro alimenta mais que um item de
             // checklist (ver BICHINHO VIRTUAL) -- só ao marcar, não ao desfazer.
-            tamaOnTaskCompleted(15, 8);
+            tama.aoCompletarTarefa(15, 8);
         } else {
             // já concluído (evento único) — desfaz a última ocorrência confirmada
             event.completedDates = event.completedDates.filter(d => d !== event.date);
@@ -1668,11 +1362,7 @@ function setContainerMode(collapsed) {
     // -- só conta na transição de verdade bandeja->expandido, não toda vez
     // que essa função roda (ex.: reaplicar o mesmo modo no boot).
     const wasCollapsed = container.classList.contains("collapsed");
-    if (wasCollapsed && !collapsed) {
-        data.tamagotchi.carencia = tamaClamp(data.tamagotchi.carencia + 3);
-        tamaRegisterInteraction();
-        scheduleTamaSave();
-    }
+    if (wasCollapsed && !collapsed) tama.aoAbrirApp();
     container.classList.toggle("collapsed", collapsed);
     container.classList.toggle("expanded", !collapsed);
     dragbarIcon.innerHTML = Icons.svg(collapsed ? "chevron-up" : "chevron-down", 13);
@@ -1777,7 +1467,7 @@ document.addEventListener("keydown", (e) => {
         // widget inteiro (mesmo padrão de Escape em campos de busca por aí).
         if (isSearchOpen()) { closeSearch(); return; }
         if (isTimerOpen()) { closeTimerPanel(); return; }
-        if (isTamaOpen()) { closeTama(); return; }
+        if (tama.estaAberto()) { tama.fechar(); return; }
         window.api.send("close-widget");
         return;
     }
@@ -1977,9 +1667,7 @@ window.api.invoke("get-data").then(loaded => {
     setContainerMode(data.widget?.collapsed !== false);
     const savedTab = data.widget?.activeTab;
     setActiveTab(VALID_TABS.has(savedTab) ? savedTab : "notas");
-    applyTamaDecay();
-    updateTamaUI();
-    scheduleTamaSave();
+    tama.iniciar();
 
     if (pendingQuickCreate) {
         const type = pendingQuickCreate;
