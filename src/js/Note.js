@@ -9,6 +9,8 @@
    (ver "note-updated" no fim do arquivo).
 */
 
+Log.iniciar("nota");
+
 const noteId = new URLSearchParams(location.search).get("id");
 
 const dragbarTitle = document.getElementById("note-dragbar-title");

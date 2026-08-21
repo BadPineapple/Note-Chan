@@ -7,7 +7,7 @@ const path = require("path");
 const PATHS = require("./Paths");
 
 const { loadData, saveData, saveDataSync } = require("./DataManager");
-const { log, warn } = require("./Logger");
+const { log, warn, registrarDeRenderer, capturarFalhasDoProcesso } = require("./Logger");
 const EventUtils = require("./EventUtils");
 const GoogleAuth = require("./GoogleAuth");
 const GoogleCalendarSync = require("./GoogleCalendarSync");
@@ -20,6 +20,10 @@ if (!app.requestSingleInstanceLock()) {
     app.quit();
     return;
 }
+
+// Antes de qualquer outra coisa: o que estoura durante o boot é o mais
+// difícil de diagnosticar sem registro.
+capturarFalhasDoProcesso();
 
 log("=== Note-Chan iniciado === versão", app.getVersion());
 log("[PATHS] userData:", PATHS.userData);
@@ -117,6 +121,10 @@ function setMode(collapsed) {
 }
 
 /* ══════════════════════════════  IPC  ════════════════════════════════════ */
+
+// Linha de log de uma janela. Renderer em sandbox não escreve em disco,
+// então quem grava é sempre este lado (ver Logger.js).
+ipcMain.on("log-entry", (event, entrada) => registrarDeRenderer(entrada));
 
 ipcMain.handle("get-data", () => data);
 ipcMain.handle("get-app-version", () => app.getVersion());
@@ -1020,6 +1028,20 @@ app.on("web-contents-created", (event, contents) => {
     });
 
     contents.on("will-attach-webview", (e) => e.preventDefault());
+
+    // Falhas que a própria janela não consegue relatar: se o renderer
+    // morreu, não sobrou ninguém lá para mandar a linha de log.
+    contents.on("render-process-gone", (e, detalhes) => {
+        warn("[FALHA] Renderer encerrado:", detalhes.reason, "— código", detalhes.exitCode);
+    });
+    contents.on("preload-error", (e, caminho, erro) => {
+        warn("[FALHA] preload falhou em", caminho, "—", erro.message);
+    });
+    contents.on("did-fail-load", (e, codigo, descricao, url) => {
+        // -3 é ABORTED, que acontece em navegação cancelada e não é falha.
+        if (codigo === -3) return;
+        warn("[FALHA] Carregamento falhou:", url, "—", descricao, codigo);
+    });
 });
 
 app.on("second-instance", () => {

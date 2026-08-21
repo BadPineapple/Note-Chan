@@ -1,5 +1,7 @@
 /* ─────────────────────────────  QuickCapture.js  ─────────────────────────── */
 
+Log.iniciar("captura");
+
 const input = document.getElementById("qc-input");
 
 function applySettings(settings) {

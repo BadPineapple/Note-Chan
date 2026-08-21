@@ -1,6 +1,8 @@
 /* ──────────────────────────────  Settings.js  ────────────────────────────── */
 // Renderer da janela de Configurações.
 
+Log.iniciar("configuracoes");
+
 let settings = { theme: "gold", transparency: 60, shortcuts: {}, alarm: { enabled: true, volume: 70, sound: "sininho" } };
 let recordingAction = null;
 

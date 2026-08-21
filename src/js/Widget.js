@@ -2,6 +2,8 @@
 // Renderer do widget. Roda em sandbox (sem Node) — toda comunicação com o
 // processo principal passa por window.api (ver preload.js).
 
+Log.iniciar("widget");
+
 let data = {
     notes: [], lists: [], events: [], tags: [],
     tamagotchi: {

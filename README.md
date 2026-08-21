@@ -174,7 +174,14 @@ Tudo fica em `data.json` dentro da pasta de dados do usuário do Windows (`%APPD
 
 Se você conectar o Google Agenda, o token de acesso fica em `google-auth.enc`, criptografado com o cofre de credenciais do próprio Windows (`safeStorage` do Electron) — nunca em texto puro, nunca dentro do `data.json`.
 
-Logs de execução ficam em `logs/runtime.log` (rotacionado a cada 2 MB), úteis pra diagnosticar problemas sem precisar abrir o DevTools.
+Logs de execução ficam em `logs/runtime.log` (rotacionado a cada 2 MB), úteis pra diagnosticar problemas sem precisar abrir o DevTools. Cada linha traz a **origem** — `main`, `widget`, `nota`, `configuracoes`, `captura` ou `alarme` —, porque com várias janelas abertas saber de onde veio a mensagem é metade do diagnóstico:
+
+```
+[2026-08-21T00:25:25.477Z] [INFO ] [main]   [WINDOW] widget criado — bandeja
+[2026-08-21T00:25:25.656Z] [INFO ] [widget] [JANELA] Iniciada.
+```
+
+Exceção não tratada e promessa rejeitada sem tratamento são registradas com a pilha completa, tanto no processo principal quanto em qualquer janela — antes elas sumiam em silêncio. O main também anota quando um renderer morre ou falha ao carregar, que são os casos em que a própria janela não tem como relatar nada. Mensagem repetida vira uma contagem (`repetida 42x`) em vez de encher o arquivo, que é justamente o que um erro em laço faria.
 
 ## Sincronização com o Google Agenda
 

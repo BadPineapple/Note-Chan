@@ -13,7 +13,8 @@ const SEND = new Set([
     "save-settings", "open-settings", "close-settings",
     "quick-capture-submit", "quick-capture-cancel",
     "alarm-stop", "alarm-snooze",
-    "open-note-window", "note-save", "note-close", "note-minimize"
+    "open-note-window", "note-save", "note-close", "note-minimize",
+    "log-entry"
 ]);
 
 // Rotas com resposta
