@@ -245,11 +245,11 @@ Toda a interface usa SVG do conjunto [Lucide](https://lucide.dev/) (ISC license)
 - JavaScript puro no front-end (sem React/Vue/framework nenhum) e CSS com variáveis para os temas — `src/html/css/Theme.css` concentra tanto a paleta (`--bg-rgb`, `--accent-rgb`, ...) quanto a forma (fonte, arredondamento, contorno e sombra dos cartões), e é o único arquivo que as cinco janelas carregam em comum
 - [electron-builder](https://www.electron.build/) — empacotamento e instalador NSIS
 - [Lucide](https://lucide.dev/) — conjunto de ícones SVG da interface
-- Fontes embutidas em `assets/fonts/`, usadas só pelo tema D'Lírio: [Chewy](https://fonts.google.com/specimen/Chewy) (Apache 2.0) nos títulos e [Kalam](https://fonts.google.com/specimen/Kalam) (SIL OFL 1.1), manuscrita, no resto da interface. Vão embutidas porque o CSP das janelas é `font-src 'self'` — os textos das duas licenças ficam ao lado dos arquivos
+- Fonte embutida em `assets/fonts/`, usada só pelo tema D'Lírio: [Kalam](https://fonts.google.com/specimen/Kalam) (SIL OFL 1.1), manuscrita, em toda a interface. Vai embutida porque o CSP das janelas é `font-src 'self'` — o texto da licença fica ao lado dos arquivos
 - Google Calendar API v3, via `fetch` nativo do Node/Electron (sem SDK) — só para quem conectar a sincronização
 
 ## Licença
 
 MIT — veja [LICENSE](LICENSE).
 
-As fontes embutidas têm licença própria, que não é a do projeto: `assets/fonts/Chewy-LICENSE.txt` (Apache 2.0) e `assets/fonts/Kalam-OFL.txt` (SIL OFL 1.1). Os ícones Lucide são ISC.
+A fonte embutida tem licença própria, que não é a do projeto: `assets/fonts/Kalam-OFL.txt` (SIL OFL 1.1). Os ícones Lucide são ISC.

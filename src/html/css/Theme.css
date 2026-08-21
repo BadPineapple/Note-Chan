@@ -163,15 +163,16 @@
    o contorno dos cartões sai de graça na mesma cor — só precisa de mais
    opacidade e espessura.
 
-   Fontes: este é o único tema com fonte embutida (ver Fonts.css). Chewy é a
-   bolhuda dos títulos, do mesmo espírito das cartelas da animação, e Kalam
-   é a manuscrita do resto da interface. Kalam veio no lugar de uma
-   arredondada mais neutra por ser de fato escrita à mão, e por ter peso 700
-   de verdade — o app usa negrito em bastante lugar, e engrossar uma
-   manuscrita por software borra o traço. As duas caem em Trebuchet MS se
-   por algum motivo o arquivo não carregar. A monoespaçada continua sendo do
-   sistema: Cascadia Mono (Windows 11) é a mais macia disponível, e o
-   cronômetro não justifica mais um arquivo. */
+   Fontes: este é o único tema com fonte embutida (ver Fonts.css). Kalam,
+   manuscrita, em tudo — inclusive nos títulos, que por um tempo usaram uma
+   display bolhuda separada e ficaram destoando do resto. Por isso o tema
+   não declara --nc-fonte-titulo: sem valor próprio, ele cai no
+   --nc-fonte-ui, que é o que se quer aqui. Kalam foi escolhida por ser
+   escrita à mão de verdade e por ter peso 700 real — o app usa negrito em
+   bastante lugar, e engrossar manuscrita por software borra o traço. Cai em
+   Segoe Print e depois Trebuchet MS se o arquivo não carregar. A
+   monoespaçada continua sendo do sistema: Cascadia Mono (Windows 11) é a
+   mais macia disponível, e o cronômetro não justifica outro arquivo. */
 [data-theme="dlirio"] {
   --bg-rgb: 240 240 150;
   --accent-rgb: 175 25 82;
@@ -183,7 +184,6 @@
   color-scheme: light;
 
   --nc-fonte-ui: 'Kalam', 'Segoe Print', 'Trebuchet MS', sans-serif;
-  --nc-fonte-titulo: 'Chewy', 'Kalam', 'Trebuchet MS', sans-serif;
   --nc-fonte-mono: 'Cascadia Mono', 'Consolas', monospace;
 
   --nc-raio-painel: 18px;

@@ -13,21 +13,10 @@
    õ, ú — mora no Latin-1, então o subconjunto estendido não faria falta e
    dobraria o peso à toa.
 
-   Licenças, com os textos completos ao lado dos arquivos em assets/fonts/:
-   Chewy é Apache 2.0 (Font Diner, Inc DBA Sideshow) e Kalam é SIL OFL 1.1
-   (Indian Type Foundry). As duas permitem redistribuir dentro de um
-   aplicativo.
+   Licença, com o texto completo ao lado dos arquivos em assets/fonts/:
+   Kalam é SIL OFL 1.1 (Indian Type Foundry), que permite redistribuir
+   dentro de um aplicativo.
 */
-
-/* Bolhuda e irregular, para título. Ilegível em texto corrido de propósito
-   — é display, não texto. Ver --nc-fonte-titulo no Theme.css. */
-@font-face {
-  font-family: 'Chewy';
-  font-style: normal;
-  font-weight: 400;
-  font-display: block;
-  src: url("../../../assets/fonts/chewy-latin.woff2") format("woff2");
-}
 
 /* Manuscrita, para a interface. Dois arquivos porque o app usa negrito em
    bastante lugar -- título de card, barra de título, tags, cronômetro -- e
@@ -46,4 +35,25 @@
   font-weight: 700;
   font-display: block;
   src: url("../../../assets/fonts/kalam-700-latin.woff2") format("woff2");
+}
+
+/* Botão, campo e select NÃO herdam font-family: o navegador impõe a fonte
+   padrão de controle do sistema, e por isso ficavam de fora da fonte do
+   tema. Boa parte das regras já corrigia isso uma a uma com
+   "font-family: inherit", mas quem esquecesse numa regra nova reabria o
+   buraco -- foi o que aconteceu com as abas e o botão de nova entrada, que
+   continuaram em Segoe UI enquanto o resto virava manuscrito.
+
+   Fica aqui, e não no Style.css, por dois motivos: é assunto de fonte, e
+   este é um dos dois arquivos que as cinco janelas carregam (o outro é o
+   Theme.css, que é só variável).
+
+   Seletor de elemento tem especificidade menor que qualquer classe ou id,
+   então isto não atropela quem escolhe fonte de propósito -- .timer-display
+   e #timer-badge continuam monoespaçados. */
+button,
+input,
+select,
+textarea {
+  font-family: inherit;
 }
