@@ -21,12 +21,30 @@
 /* Manuscrita, para a interface. Dois arquivos porque o app usa negrito em
    bastante lugar -- título de card, barra de título, tags, cronômetro -- e
    sem um 700 de verdade o navegador engrossa o 400 por conta própria, o
-   que numa manuscrita borra o traço em vez de encorpar. */
+   que numa manuscrita borra o traço em vez de encorpar.
+
+   Os três override existem porque a Kalam é de origem devanágari, e fonte
+   devanágari reserva uma faixa vertical enorme para os sinais que ficam
+   acima e abaixo da linha. A métrica declarada é ascendente 106,3% mais
+   descendente 53,1%, ou seja line-height:normal de 1,594em -- 20% mais alto
+   que os 1,330em da Segoe UI, que é a fonte dos outros temas. Na prática
+   isso esparramava as linhas do app inteiro.
+
+   Os valores abaixo não são chute: medindo a caixa de cada glifo latino nos
+   dois arquivos, o que de fato se usa vai de +101,5% (o À do negrito, a
+   capital acentuada mais alta) até -25,9% (o g do negrito). Os 104% e 30%
+   cobrem isso com folga e devolvem a altura de linha para 1,34em, quase
+   exatamente a da Segoe UI. Mexer nesses números para menos começa a cortar
+   acento de maiúscula -- Ã, É e À são os primeiros a sofrer, o que em
+   português aparece toda hora. */
 @font-face {
   font-family: 'Kalam';
   font-style: normal;
   font-weight: 400;
   font-display: block;
+  ascent-override: 104%;
+  descent-override: 30%;
+  line-gap-override: 0%;
   src: url("../../../assets/fonts/kalam-400-latin.woff2") format("woff2");
 }
 @font-face {
@@ -34,6 +52,9 @@
   font-style: normal;
   font-weight: 700;
   font-display: block;
+  ascent-override: 104%;
+  descent-override: 30%;
+  line-gap-override: 0%;
   src: url("../../../assets/fonts/kalam-700-latin.woff2") format("woff2");
 }
 
