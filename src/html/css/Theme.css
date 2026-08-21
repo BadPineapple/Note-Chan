@@ -164,12 +164,14 @@
    opacidade e espessura.
 
    Fontes: este é o único tema com fonte embutida (ver Fonts.css). Chewy é a
-   bolhuda dos títulos, do mesmo espírito das cartelas da animação, e Baloo 2
-   é a arredondada da interface — foi escolhida por aguentar texto corrido,
-   coisa que a Chewy não faz. As duas caem em Trebuchet MS se por algum
-   motivo o arquivo não carregar. A monoespaçada continua sendo do sistema:
-   Cascadia Mono (Windows 11) é a mais macia disponível, e o cronômetro não
-   justifica um terceiro arquivo. */
+   bolhuda dos títulos, do mesmo espírito das cartelas da animação, e Kalam
+   é a manuscrita do resto da interface. Kalam veio no lugar de uma
+   arredondada mais neutra por ser de fato escrita à mão, e por ter peso 700
+   de verdade — o app usa negrito em bastante lugar, e engrossar uma
+   manuscrita por software borra o traço. As duas caem em Trebuchet MS se
+   por algum motivo o arquivo não carregar. A monoespaçada continua sendo do
+   sistema: Cascadia Mono (Windows 11) é a mais macia disponível, e o
+   cronômetro não justifica mais um arquivo. */
 [data-theme="dlirio"] {
   --bg-rgb: 240 240 150;
   --accent-rgb: 175 25 82;
@@ -180,8 +182,8 @@
   --dragbar-alpha: 0.9;
   color-scheme: light;
 
-  --nc-fonte-ui: 'Baloo 2', 'Trebuchet MS', 'Segoe UI', Tahoma, sans-serif;
-  --nc-fonte-titulo: 'Chewy', 'Baloo 2', 'Trebuchet MS', sans-serif;
+  --nc-fonte-ui: 'Kalam', 'Segoe Print', 'Trebuchet MS', sans-serif;
+  --nc-fonte-titulo: 'Chewy', 'Kalam', 'Trebuchet MS', sans-serif;
   --nc-fonte-mono: 'Cascadia Mono', 'Consolas', monospace;
 
   --nc-raio-painel: 18px;
@@ -195,5 +197,9 @@
 
   --nc-sombra-card: 0 2px 0 rgb(var(--surface-rgb) / 0.32);
 
-  --nc-textura: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='g'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='140' height='140' filter='url(%23g)' opacity='0.16'/%3E%3C/svg%3E");
+  /* O grão guarda cor de propósito (saturate 0.55, não 0): dessaturado ele
+     vira só sujeira cinza e some sobre o amarelo. Com cor, os pontinhos
+     puxam pro verde e pro rosa da paleta, que é o que dá a mancha de papel
+     impresso. baseFrequency menor = grão um pouco mais graúdo. */
+  --nc-textura: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='g'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.75' numOctaves='4' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0.55'/%3E%3C/filter%3E%3Crect width='160' height='160' filter='url(%23g)' opacity='0.3'/%3E%3C/svg%3E");
 }

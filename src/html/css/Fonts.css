@@ -14,9 +14,9 @@
    dobraria o peso à toa.
 
    Licenças, com os textos completos ao lado dos arquivos em assets/fonts/:
-   Chewy é Apache 2.0 (Font Diner, Inc DBA Sideshow) e Baloo 2 é SIL OFL
-   1.1 (The Baloo 2 Project Authors). As duas permitem redistribuir dentro
-   de um aplicativo.
+   Chewy é Apache 2.0 (Font Diner, Inc DBA Sideshow) e Kalam é SIL OFL 1.1
+   (Indian Type Foundry). As duas permitem redistribuir dentro de um
+   aplicativo.
 */
 
 /* Bolhuda e irregular, para título. Ilegível em texto corrido de propósito
@@ -29,13 +29,21 @@
   src: url("../../../assets/fonts/chewy-latin.woff2") format("woff2");
 }
 
-/* Arredondada mas ainda confortável em texto corrido, para a interface.
-   É fonte variável: um arquivo só cobre de 400 a 800, por isso o intervalo
-   no font-weight em vez de um arquivo por peso. */
+/* Manuscrita, para a interface. Dois arquivos porque o app usa negrito em
+   bastante lugar -- título de card, barra de título, tags, cronômetro -- e
+   sem um 700 de verdade o navegador engrossa o 400 por conta própria, o
+   que numa manuscrita borra o traço em vez de encorpar. */
 @font-face {
-  font-family: 'Baloo 2';
+  font-family: 'Kalam';
   font-style: normal;
-  font-weight: 400 800;
+  font-weight: 400;
   font-display: block;
-  src: url("../../../assets/fonts/baloo2-latin.woff2") format("woff2");
+  src: url("../../../assets/fonts/kalam-400-latin.woff2") format("woff2");
+}
+@font-face {
+  font-family: 'Kalam';
+  font-style: normal;
+  font-weight: 700;
+  font-display: block;
+  src: url("../../../assets/fonts/kalam-700-latin.woff2") format("woff2");
 }
