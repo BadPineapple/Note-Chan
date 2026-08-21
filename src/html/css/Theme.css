@@ -1,19 +1,55 @@
 /* ═══════════════════════════════  Theme.css  ═════════════════════════════
-   Só variáveis — nenhuma regra visual mora aqui. Compartilhado pelas 3
-   janelas (widget, configurações, captura rápida) via <link>, assim trocar
-   de tema em uma reflete a paleta nas outras.
+   Só variáveis — nenhuma regra visual mora aqui. Compartilhado pelas 5
+   janelas (widget, configurações, captura rápida, bloco de notas, alarme)
+   via <link>, assim trocar de tema em uma reflete nas outras.
 
-   --surface-rgb é a cor "neutra" usada em overlays (cartões, hover, inputs):
-   branco nos temas escuros (clareia a superfície), preto nos temas claros
-   (escurece pra manter contraste) — as regras em Style.css usam sempre a
-   mesma opacidade, só a base muda por tema.
+   São dois grupos de variáveis:
+
+   1) Paleta (--bg-rgb, --accent-rgb, ...). --surface-rgb é a cor "neutra"
+      usada em overlays (cartões, hover, inputs): branco nos temas escuros
+      (clareia a superfície), preto nos temas claros (escurece pra manter
+      contraste) — as regras nos outros arquivos usam sempre a mesma
+      opacidade, só a base muda por tema.
+
+   2) Forma (--nc-fonte-*, --nc-raio-*, --nc-traco-*, --nc-sombra-card).
+      Fonte, arredondamento, espessura de contorno e sombra dos cartões.
+      Os padrões abaixo mantêm a aparência que o app já tinha (a única
+      diferença é que botões e campos, que variavam entre 5px, 6px e 7px
+      de raio, agora usam o mesmo valor), então tema que não mexer em nada
+      continua igual; tema que quiser visual próprio muda só o que precisa.
 
    color-scheme diz ao Chromium se o "chrome" nativo dos controles de
    formulário (o popup do <select>, o calendário do <input type=date>, a
    barra de rolagem) deve ser claro ou escuro — sem isso, o popup do select
    sempre vem branco, o que fica ilegível com texto claro por cima nos temas
    escuros.
+
+   Ordem importa: :root e [data-theme="x"] têm a MESMA especificidade, então
+   o bloco de padrões precisa vir antes dos temas pra poder ser sobrescrito.
 */
+
+/* ───────────────────────────  Padrões de forma  ─────────────────────────── */
+:root {
+  --nc-fonte-ui: 'Segoe UI', Tahoma, sans-serif;
+  --nc-fonte-mono: 'Consolas', 'Courier New', monospace;
+
+  /* painel/janela · cartão · botão-campo-aba · pílula de tag */
+  --nc-raio-painel: 12px;
+  --nc-raio-card: 8px;
+  --nc-raio-ctrl: 7px;
+  --nc-raio-pilula: 10px;
+
+  /* Contorno de cartão, item de lista e campo. Por padrão é a mesma cor
+     neutra dos overlays, quase imperceptível — um tema pode trocar por uma
+     cor de traço de verdade e engrossar. */
+  --nc-traco-rgb: var(--surface-rgb, 255 255 255);
+  --nc-traco-alpha: 0.1;
+  --nc-traco-w: 1px;
+
+  --nc-sombra-card: none;
+}
+
+/* ───────────────────────────────  Paletas  ──────────────────────────────── */
 
 :root,
 [data-theme="gold"] {
@@ -76,4 +112,49 @@
   --dragbar-rgb: 255 222 150;
   --dragbar-alpha: 0.55;
   color-scheme: light;
+}
+
+/* D'Lírio — tirado da animação do canal: fundo amarelo-limão pastel, corpo
+   creme, cabelo rosa-lilás, vestido e nariz rosa-choque, tudo delimitado
+   por um traço grosso cor de ameixa.
+
+   É o primeiro tema que mexe também na forma, justamente pra imitar esse
+   desenho: o contorno de ameixa vira a borda dos cartões (por isso
+   --nc-traco-* sai do neutro e engrossa pra 2px), o arredondamento cresce
+   em tudo, as tags viram pílulas redondas de verdade e cada cartão ganha
+   uma sombra dura embaixo — sem desfoque, como sombra chapada de desenho.
+
+   --surface-rgb aqui não é preto puro como nos outros temas claros: é a
+   própria cor do traço. Sobre um fundo saturado desses, escurecer com preto
+   dá cinza sujo, enquanto escurecer com a ameixa dá a mesma sombra quente
+   que o desenho usa. E como --nc-traco-rgb cai no --surface-rgb por padrão,
+   o contorno dos cartões sai de graça na mesma cor — só precisa de mais
+   opacidade e espessura.
+
+   Fontes: Trebuchet MS tem o desenho humanista arredondado que combina com
+   o traço, e Cascadia Mono (Windows 11) é a monoespaçada mais macia
+   disponível sem embutir arquivo de fonte — o CSP das janelas é
+   font-src 'self', então só dá pra usar o que já existe no sistema. */
+[data-theme="dlirio"] {
+  --bg-rgb: 240 240 150;
+  --accent-rgb: 175 25 82;
+  --panel-text-rgb: 74 36 46;
+  --surface-rgb: 92 46 56;
+  --danger-rgb: 180 45 40;
+  --dragbar-rgb: 248 190 220;
+  --dragbar-alpha: 0.9;
+  color-scheme: light;
+
+  --nc-fonte-ui: 'Trebuchet MS', 'Segoe UI', Tahoma, sans-serif;
+  --nc-fonte-mono: 'Cascadia Mono', 'Consolas', monospace;
+
+  --nc-raio-painel: 18px;
+  --nc-raio-card: 14px;
+  --nc-raio-ctrl: 11px;
+  --nc-raio-pilula: 999px;
+
+  --nc-traco-alpha: 0.8;
+  --nc-traco-w: 2px;
+
+  --nc-sombra-card: 0 2px 0 rgb(var(--surface-rgb) / 0.32);
 }

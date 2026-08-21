@@ -60,6 +60,15 @@ const SECURE_PREFS = {
 const DOCK_HEADER_HEIGHT = 32;
 const DOCK_MARGIN = 2;
 
+// Transição bandeja <-> expandido. Como o widget é frameless e ancorado na
+// borda de baixo, quem "abre" e "fecha" é a própria janela mudando de altura
+// -- não existe nada em CSS que possa fazer isso, o conteúdo só é cortado
+// pelo tamanho da janela. E o flag `animate` do setBounds só vale no macOS,
+// então a interpolação é feita aqui, quadro a quadro.
+const DOCK_ANIM_MS = 190;
+const DOCK_ANIM_FRAME_MS = 16;
+let dockAnimTimer = null;
+
 // Checagem periódica de notificações de eventos, e a "janela de tolerância":
 // além dela um horário perdido (app fechado/dormindo) não dispara mais,
 // só fica marcado como já visto pra não notificar tarde demais.
@@ -100,6 +109,61 @@ function computeBounds(collapsed) {
     };
 }
 
+// easeOutCubic: anda rápido no começo e desacelera no fim, que é o que dá
+// a sensação de assentar no lugar em vez de parar seco.
+function easeOutCubic(t) { return 1 - Math.pow(1 - t, 3); }
+
+// Interpola só a altura: x, largura e a borda de baixo ficam parados, senão
+// o widget pareceria escorregar pela tela em vez de abrir no lugar. onDone
+// roda no fim -- é por ele que o renderer descobre a hora de esconder o
+// conteúdo (ver setMode).
+function animateWidgetBounds(target, onDone) {
+    clearInterval(dockAnimTimer);
+    dockAnimTimer = null;
+
+    if (!widgetWindow || widgetWindow.isDestroyed()) { onDone?.(); return; }
+
+    const from = widgetWindow.getBounds();
+    const base = target.y + target.height;   // borda de baixo, a que não se mexe
+
+    // Sem altura pra percorrer, ou com a janela escondida (atalho global de
+    // mostrar/ocultar), animar seria só gastar quadro à toa.
+    if (from.height === target.height || !widgetWindow.isVisible()) {
+        widgetWindow.setBounds(target, false);
+        onDone?.();
+        return;
+    }
+
+    const inicio = Date.now();
+    dockAnimTimer = setInterval(() => {
+        const fim = () => {
+            clearInterval(dockAnimTimer);
+            dockAnimTimer = null;
+        };
+
+        if (!widgetWindow || widgetWindow.isDestroyed()) { fim(); return; }
+
+        // Escondeu no meio do caminho: corta a animação, mas ainda deixa a
+        // janela no tamanho certo pra reaparecer já no modo novo.
+        if (!widgetWindow.isVisible()) {
+            fim();
+            widgetWindow.setBounds(target, false);
+            onDone?.();
+            return;
+        }
+
+        const t = Math.min(1, (Date.now() - inicio) / DOCK_ANIM_MS);
+        const height = Math.round(from.height + (target.height - from.height) * easeOutCubic(t));
+        widgetWindow.setBounds({ x: target.x, y: base - height, width: target.width, height }, false);
+
+        if (t >= 1) {
+            fim();
+            widgetWindow.setBounds(target, false);   // fecha no valor exato, sem sobra de arredondamento
+            onDone?.();
+        }
+    }, DOCK_ANIM_FRAME_MS);
+}
+
 function setMode(collapsed) {
     const wasCollapsed = data.widget.collapsed;
     if (wasCollapsed !== collapsed) log("[WIDGET] Modo:", collapsed ? "bandeja" : "expandido");
@@ -116,8 +180,20 @@ function setMode(collapsed) {
     }
 
     if (!widgetWindow || widgetWindow.isDestroyed()) return;
-    widgetWindow.setBounds(computeBounds(collapsed), true);
-    widgetWindow.webContents.send("set-mode", collapsed ? "collapsed" : "expanded");
+
+    // A ordem entre avisar o renderer e animar a janela muda conforme o lado
+    // da transição. Recolhendo, o conteúdo tem que continuar montado enquanto
+    // a janela encolhe por cima dele -- a classe .collapsed, que o esconde de
+    // vez, só entra no fim; do contrário o painel esvaziaria antes de acabar
+    // de fechar. Expandindo é o inverso: o conteúdo precisa estar lá antes de
+    // a janela crescer, senão a área nova abre vazia e preenche depois.
+    const alvo = computeBounds(collapsed);
+    const avisar = (modo) => {
+        if (widgetWindow && !widgetWindow.isDestroyed()) widgetWindow.webContents.send("set-mode", modo);
+    };
+
+    if (collapsed) animateWidgetBounds(alvo, () => avisar("collapsed"));
+    else { avisar("expanded"); animateWidgetBounds(alvo); }
 }
 
 /* ══════════════════════════════  IPC  ════════════════════════════════════ */
@@ -504,11 +580,23 @@ function createSettingsWindow() {
         resizable: false,
         title: "Configurações — Note-Chan",
         autoHideMenuBar: true,
+        show: false,          // mesma ideia da janela de nota: só aparece pronta
         webPreferences: SECURE_PREFS
     });
 
     settingsWindow.setMenuBarVisibility(false);
     settingsWindow.loadFile(path.join(__dirname, "../html/settings.html"));
+
+    // Sem isto a janela abria vazia e ia se preenchendo à vista. Esperar o
+    // primeiro quadro pronto tira o lampejo e ainda faz a entrada em CSS
+    // (#settings-container, em settings_style.css) começar junto com o show,
+    // em vez de ter passado enquanto a janela ainda estava invisível.
+    settingsWindow.once("ready-to-show", () => {
+        if (settingsWindow && !settingsWindow.isDestroyed()) {
+            settingsWindow.show();
+            settingsWindow.focus();
+        }
+    });
     settingsWindow.on("closed", () => { log("[WINDOW] configurações fechada"); settingsWindow = null; });
     log("[WINDOW] configurações criada");
 }

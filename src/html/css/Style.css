@@ -9,7 +9,7 @@ html, body {
   padding: 0;
   background: transparent;
   color: rgb(var(--panel-text-rgb, 255 255 255));
-  font-family: 'Segoe UI', Tahoma, sans-serif;
+  font-family: var(--nc-fonte-ui, 'Segoe UI', Tahoma, sans-serif);
   width: 100%;
   height: 100%;
   user-select: none;
@@ -41,7 +41,7 @@ svg { vertical-align: -2px; flex-shrink: 0; }
   width: 100%;
   height: 100%;
   background: rgb(var(--bg-rgb, 30 30 30) / var(--bg-alpha, 0.6));
-  border-radius: 12px;
+  border-radius: var(--nc-raio-painel, 12px);
   overflow: hidden;
 }
 /* Sem padding no #panel de propósito — o dragbar precisa ocupar o topo
@@ -96,13 +96,16 @@ svg { vertical-align: -2px; flex-shrink: 0; }
   color: rgb(var(--accent-rgb, 255 215 0));
   font-weight: bold;
   letter-spacing: 1px;
-  border-top-left-radius: 12px;
-  border-top-right-radius: 12px;
+  border-top-left-radius: var(--nc-raio-painel, 12px);
+  border-top-right-radius: var(--nc-raio-painel, 12px);
   cursor: pointer;
-  transition: background 0.2s;
+  /* No modo bandeja a barra fica arredondada nos quatro cantos, expandida só
+     em cima. Sem transição, esses dois cantos de baixo apareciam de estalo no
+     fim do movimento da janela (ver animateWidgetBounds em Main.js). */
+  transition: background 0.2s, border-radius 0.15s ease;
 }
 #dragbar:hover { background: rgb(var(--dragbar-rgb, 10 10 10) / calc(var(--dragbar-alpha, 0.3) + 0.15)); }
-#container.collapsed #dragbar { border-radius: 12px; }
+#container.collapsed #dragbar { border-radius: var(--nc-raio-painel, 12px); }
 
 #dragbar-icon {
   display: inline-flex;
@@ -122,7 +125,7 @@ svg { vertical-align: -2px; flex-shrink: 0; }
 /* Tempo do cronômetro/temporizador -- discreto, só aparece quando tem algo
    rodando ou pausado (ver Widget.js, controla o textContent). */
 #timer-badge {
-  font-family: 'Consolas', 'Courier New', monospace;
+  font-family: var(--nc-fonte-mono, 'Consolas', 'Courier New', monospace);
   font-size: 0.72em;
   font-weight: normal;
   letter-spacing: 0.5px;
@@ -143,7 +146,7 @@ svg { vertical-align: -2px; flex-shrink: 0; }
   background: none;
   color: rgb(var(--accent-rgb, 255 215 0));
   font-size: 14px;
-  border-radius: 5px;
+  border-radius: var(--nc-raio-ctrl, 7px);
   cursor: pointer;
   outline: none;
   transition: background 0.2s;
@@ -170,7 +173,7 @@ svg { vertical-align: -2px; flex-shrink: 0; }
   color: rgb(var(--panel-text-rgb, 255 255 255));
   opacity: 0.7;
   border: none;
-  border-radius: 7px;
+  border-radius: var(--nc-raio-ctrl, 7px);
   font-size: 0.78em;
   white-space: nowrap;
   overflow: hidden;
@@ -198,7 +201,7 @@ svg { vertical-align: -2px; flex-shrink: 0; }
   background: rgb(var(--surface-rgb, 255 255 255) / 0.08);
   color: rgb(var(--accent-rgb, 255 215 0));
   border: none;
-  border-radius: 7px;
+  border-radius: var(--nc-raio-ctrl, 7px);
   font-size: 0.95em;
   cursor: pointer;
   transition: background 0.2s;
@@ -220,7 +223,7 @@ svg { vertical-align: -2px; flex-shrink: 0; }
   background: rgb(var(--surface-rgb, 255 255 255) / 0.08);
   color: rgb(var(--panel-text-rgb, 255 255 255));
   border: none;
-  border-radius: 7px;
+  border-radius: var(--nc-raio-ctrl, 7px);
   font-family: inherit;
   font-size: 0.88em;
   outline: none;
@@ -229,14 +232,39 @@ svg { vertical-align: -2px; flex-shrink: 0; }
 #search-input:focus { box-shadow: 0 0 0 1px rgb(var(--accent-rgb, 255 215 0) / 0.35) inset; }
 
 /* ──────────────────────────  Cronômetro / Temporizador  ─────────────────── */
+/* Abre e fecha em sanfona, com o resto do painel se ajeitando embaixo em vez
+   de dar um pulo. É max-height porque não existe animação até height:auto --
+   o teto só precisa ser maior que o conteúdo, que aqui é fixo (modo, relógio,
+   a linha de duração do temporizador e os botões) -- e nem tão maior assim,
+   porque o trecho de teto que sobra acima do conteúdo real é tempo de
+   animação em que nada se mexe na hora de fechar. Padding e margem entram na
+   transição junto, senão o painel fechado continuaria ocupando a altura
+   deles. E visibility acompanha pra que os campos de duração não fiquem
+   alcançáveis pelo TAB enquanto isso está fechado -- com display:none isso
+   vinha de graça, com max-height:0 não vem: conteúdo cortado por overflow
+   continua recebendo foco. Ela vira 0s com atraso justamente pra esperar a
+   sanfona terminar na hora de fechar, e valer na hora de abrir. */
 #timer-panel {
-  display: none;
-  padding: 8px 6px;
-  margin: 0 3px 6px;
+  max-height: 0;
+  padding: 0 6px;
+  margin: 0 3px;
+  opacity: 0;
+  visibility: hidden;
+  overflow: hidden;
   background: rgb(var(--surface-rgb, 255 255 255) / 0.06);
-  border-radius: 8px;
+  border-radius: var(--nc-raio-card, 8px);
+  transition: max-height 0.2s ease, padding 0.2s ease, margin-bottom 0.2s ease,
+              opacity 0.16s ease, visibility 0s linear 0.2s;
 }
-#timer-panel.open { display: block; }
+#timer-panel.open {
+  max-height: 200px;
+  padding: 8px 6px;
+  margin-bottom: 6px;
+  opacity: 1;
+  visibility: visible;
+  transition: max-height 0.2s ease, padding 0.2s ease, margin-bottom 0.2s ease,
+              opacity 0.16s ease, visibility 0s linear 0s;
+}
 
 .timer-mode-toggle {
   display: flex;
@@ -250,7 +278,7 @@ svg { vertical-align: -2px; flex-shrink: 0; }
   color: rgb(var(--panel-text-rgb, 255 255 255));
   opacity: 0.65;
   border: none;
-  border-radius: 6px;
+  border-radius: var(--nc-raio-ctrl, 7px);
   font-family: inherit;
   font-size: 0.76em;
   cursor: pointer;
@@ -266,7 +294,7 @@ svg { vertical-align: -2px; flex-shrink: 0; }
 
 .timer-display {
   text-align: center;
-  font-family: 'Consolas', 'Courier New', monospace;
+  font-family: var(--nc-fonte-mono, 'Consolas', 'Courier New', monospace);
   font-size: 1.6em;
   font-weight: bold;
   letter-spacing: 1px;
@@ -291,7 +319,7 @@ svg { vertical-align: -2px; flex-shrink: 0; }
   background: rgb(var(--surface-rgb, 255 255 255) / 0.08);
   color: rgb(var(--panel-text-rgb, 255 255 255));
   border: none;
-  border-radius: 5px;
+  border-radius: var(--nc-raio-ctrl, 7px);
   font-family: inherit;
   font-size: 1em;
   text-align: center;
@@ -313,7 +341,7 @@ svg { vertical-align: -2px; flex-shrink: 0; }
   background: rgb(var(--accent-rgb, 255 215 0) / 0.16);
   color: rgb(var(--accent-rgb, 255 215 0));
   border: none;
-  border-radius: 6px;
+  border-radius: var(--nc-raio-ctrl, 7px);
   font-family: inherit;
   font-size: 0.85em;
   font-weight: bold;
@@ -357,8 +385,9 @@ svg { vertical-align: -2px; flex-shrink: 0; }
   margin-bottom: 6px;
   padding: 6px 26px 6px 8px;
   background: rgb(var(--surface-rgb, 255 255 255) / 0.06);
-  border-radius: 8px;
-  border: 1px solid rgb(var(--surface-rgb, 255 255 255) / 0.1);
+  border-radius: var(--nc-raio-card, 8px);
+  border: var(--nc-traco-w, 1px) solid rgb(var(--nc-traco-rgb, 255 255 255) / var(--nc-traco-alpha, 0.1));
+  box-shadow: var(--nc-sombra-card, none);
   transition: background 0.15s;
 }
 .card:hover { background: rgb(var(--surface-rgb, 255 255 255) / 0.1); }
@@ -480,7 +509,7 @@ svg { vertical-align: -2px; flex-shrink: 0; }
   background: rgb(var(--surface-rgb, 255 255 255) / 0.08);
   color: rgb(var(--panel-text-rgb, 255 255 255));
   border: none;
-  border-radius: 6px;
+  border-radius: var(--nc-raio-ctrl, 7px);
   font-family: inherit;
   /* o padrão de 0.95em vale enquanto Configurações não definir um tamanho */
   font-size: var(--nc-fonte-nota, 0.95em);
@@ -502,8 +531,8 @@ svg { vertical-align: -2px; flex-shrink: 0; }
   display: flex;
   align-items: center;
   padding: 4px 2px;
-  border-radius: 5px;
-  border-bottom: 1px solid rgb(var(--surface-rgb, 255 255 255) / 0.08);
+  border-radius: var(--nc-raio-ctrl, 7px);
+  border-bottom: 1px solid rgb(var(--nc-traco-rgb, 255 255 255) / 0.08);
   cursor: grab;
 }
 .list-item:last-child { border-bottom: none; }
@@ -552,7 +581,7 @@ svg { vertical-align: -2px; flex-shrink: 0; }
   background: rgb(var(--surface-rgb, 255 255 255) / 0.08);
   color: rgb(var(--panel-text-rgb, 255 255 255));
   border: none;
-  border-radius: 5px;
+  border-radius: var(--nc-raio-ctrl, 7px);
   font-family: inherit;
   font-size: 0.88em;
   outline: none;
@@ -564,7 +593,7 @@ svg { vertical-align: -2px; flex-shrink: 0; }
 .event-badge {
   display: inline-block;
   padding: 1px 6px;
-  border-radius: 4px;
+  border-radius: var(--nc-raio-pilula, 10px);
   font-size: 0.82em;
   font-weight: bold;
   margin-right: 4px;
@@ -593,7 +622,7 @@ svg { vertical-align: -2px; flex-shrink: 0; }
   background: rgb(var(--surface-rgb, 255 255 255) / 0.08);
   color: rgb(var(--panel-text-rgb, 255 255 255));
   border: none;
-  border-radius: 5px;
+  border-radius: var(--nc-raio-ctrl, 7px);
   padding: 4px 6px;
   font-family: inherit;
   font-size: 0.92em;
@@ -623,7 +652,7 @@ svg { vertical-align: -2px; flex-shrink: 0; }
   background: rgb(var(--accent-rgb, 255 215 0) / 0.16);
   color: rgb(var(--accent-rgb, 255 215 0));
   border: none;
-  border-radius: 5px;
+  border-radius: var(--nc-raio-ctrl, 7px);
   cursor: pointer;
   font-size: 0.85em;
   white-space: nowrap;
@@ -650,7 +679,7 @@ svg { vertical-align: -2px; flex-shrink: 0; }
   background: rgba(90, 190, 120, 0.16);
   color: #3f9a5c;
   border: 1px solid rgba(90, 190, 120, 0.35);
-  border-radius: 6px;
+  border-radius: var(--nc-raio-ctrl, 7px);
   cursor: pointer;
   font-size: 0.9em;
   font-weight: bold;
@@ -667,7 +696,7 @@ svg { vertical-align: -2px; flex-shrink: 0; }
 .birthday-badge {
   display: inline-block;
   padding: 1px 6px;
-  border-radius: 4px;
+  border-radius: var(--nc-raio-pilula, 10px);
   font-size: 0.82em;
   font-weight: bold;
   margin-right: 4px;
@@ -679,7 +708,7 @@ svg { vertical-align: -2px; flex-shrink: 0; }
 .birthday-category {
   display: inline-block;
   padding: 1px 6px;
-  border-radius: 4px;
+  border-radius: var(--nc-raio-pilula, 10px);
   font-size: 0.78em;
   background: rgb(var(--surface-rgb, 255 255 255) / 0.08);
   opacity: 0.85;
@@ -705,7 +734,7 @@ svg { vertical-align: -2px; flex-shrink: 0; }
   display: inline-block;
   flex-shrink: 0;
   padding: 1px 6px;
-  border-radius: 10px;
+  border-radius: var(--nc-raio-pilula, 10px);
   font-size: 0.68em;
   font-weight: bold;
   white-space: nowrap;
@@ -729,12 +758,12 @@ svg { vertical-align: -2px; flex-shrink: 0; }
 .tag-toggle {
   flex-shrink: 0;
   padding: 2px 9px;
-  border-radius: 10px;
+  border-radius: var(--nc-raio-pilula, 10px);
   font-size: 0.78em;
   font-family: inherit;
   white-space: nowrap;
   cursor: pointer;
-  border: 1px solid rgb(var(--surface-rgb, 255 255 255) / 0.15);
+  border: 1px solid rgb(var(--nc-traco-rgb, 255 255 255) / 0.15);
   background: rgb(var(--surface-rgb, 255 255 255) / 0.06);
   color: rgb(var(--panel-text-rgb, 255 255 255) / 0.6);
   transition: opacity 0.15s;
@@ -766,7 +795,7 @@ svg { vertical-align: -2px; flex-shrink: 0; }
   font-weight: bold;
   color: rgb(var(--accent-rgb, 255 215 0));
   background: rgb(var(--bg-rgb, 30 30 30) / 0.85);
-  border-radius: 12px;
+  border-radius: var(--nc-raio-painel, 12px);
   pointer-events: none;
   z-index: 5;
 }
@@ -819,7 +848,7 @@ svg { vertical-align: -2px; flex-shrink: 0; }
   align-items: center;
   justify-content: center;
   border: none;
-  border-radius: 6px;
+  border-radius: var(--nc-raio-ctrl, 7px);
   background: rgb(var(--surface-rgb, 255 255 255) / 0.08);
   color: rgb(var(--accent-rgb, 255 215 0));
   font-size: 0.95em;
@@ -953,7 +982,7 @@ svg { vertical-align: -2px; flex-shrink: 0; }
   color: rgb(var(--panel-text-rgb, 255 255 255));
   opacity: 0.7;
   border: none;
-  border-radius: 7px;
+  border-radius: var(--nc-raio-ctrl, 7px);
   font-size: 0.78em;
   white-space: nowrap;
   overflow: hidden;
@@ -982,7 +1011,7 @@ svg { vertical-align: -2px; flex-shrink: 0; }
   background: rgb(var(--surface-rgb, 255 255 255) / 0.06);
   color: rgb(var(--panel-text-rgb, 255 255 255));
   border: none;
-  border-radius: 7px;
+  border-radius: var(--nc-raio-ctrl, 7px);
   font-family: inherit;
   font-size: 0.85em;
   text-align: left;

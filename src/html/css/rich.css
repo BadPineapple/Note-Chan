@@ -42,7 +42,7 @@
 }
 
 .nc-rico code {
-  font-family: 'Consolas', 'Courier New', monospace;
+  font-family: var(--nc-fonte-mono, 'Consolas', 'Courier New', monospace);
   font-size: 0.92em;
   padding: 0 3px;
   border-radius: 3px;
@@ -52,10 +52,10 @@
 .nc-rico pre {
   margin: 4px 0;
   padding: 6px 8px;
-  border-radius: 5px;
+  border-radius: var(--nc-raio-ctrl, 7px);
   border-left: 2px solid rgb(var(--accent-rgb, 255 215 0) / 0.5);
   background: rgb(var(--surface-rgb, 255 255 255) / 0.1);
-  font-family: 'Consolas', 'Courier New', monospace;
+  font-family: var(--nc-fonte-mono, 'Consolas', 'Courier New', monospace);
   font-size: 0.92em;
   white-space: pre-wrap;
 }
@@ -71,7 +71,7 @@
   flex-wrap: wrap;
   margin-top: 6px;
   padding: 2px;
-  border-radius: 6px;
+  border-radius: var(--nc-raio-ctrl, 7px);
   background: rgb(var(--surface-rgb, 255 255 255) / 0.06);
 }
 

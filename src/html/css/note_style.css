@@ -15,7 +15,7 @@ html, body {
   padding: 0;
   height: 100%;
   overflow: hidden;
-  font-family: 'Segoe UI', Tahoma, sans-serif;
+  font-family: var(--nc-fonte-ui, 'Segoe UI', Tahoma, sans-serif);
   background: rgb(var(--bg-rgb, 30 30 30));
   color: rgb(var(--panel-text-rgb, 255 255 255));
 }
@@ -80,7 +80,7 @@ html, body {
   border: none;
   background: none;
   color: rgb(var(--accent-rgb, 255 215 0));
-  border-radius: 5px;
+  border-radius: var(--nc-raio-ctrl, 7px);
   cursor: pointer;
   outline: none;
   transition: background 0.2s;
@@ -95,7 +95,7 @@ html, body {
   margin: 8px 10px 4px;
   padding: 4px 6px;
   border: none;
-  border-bottom: 1px solid rgb(var(--surface-rgb, 255 255 255) / 0.12);
+  border-bottom: 1px solid rgb(var(--nc-traco-rgb, 255 255 255) / 0.12);
   background: none;
   color: rgb(var(--accent-rgb, 255 215 0));
   font-family: inherit;
@@ -111,11 +111,11 @@ html, body {
   min-height: 0;
   margin: 0 10px;
   padding: 6px;
-  border: 1px solid rgb(var(--surface-rgb, 255 255 255) / 0.1);
-  border-radius: 6px;
+  border: var(--nc-traco-w, 1px) solid rgb(var(--nc-traco-rgb, 255 255 255) / var(--nc-traco-alpha, 0.1));
+  border-radius: var(--nc-raio-ctrl, 7px);
   background: rgb(var(--surface-rgb, 255 255 255) / 0.06);
   color: rgb(var(--panel-text-rgb, 255 255 255));
-  font-family: 'Consolas', 'Segoe UI', monospace;
+  font-family: var(--nc-fonte-mono, 'Consolas', 'Courier New', monospace);
   /* o padrão de 0.92em vale enquanto Configurações não definir um tamanho */
   font-size: var(--nc-fonte-nota, 0.92em);
   line-height: 1.5;

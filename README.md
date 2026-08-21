@@ -68,7 +68,7 @@ Clicar numa notificação do bichinho abre o widget direto no painel dele.
 
 ### Configurações
 
-- 5 temas prontos: Dourado, Kuromi, Hello Kitty, Cinnamoroll e Gudetama.
+- 6 temas prontos: Dourado, Kuromi, Hello Kitty, Cinnamoroll, Gudetama e D'Lírio.
 - Transparência do widget ajustável.
 - Alarme de eventos: ligar/desligar, volume e escolha de som (4 opções sintetizadas).
 - Atalhos globais reconfiguráveis (gravados clicando e pressionando a combinação desejada).
@@ -242,7 +242,7 @@ Toda a interface usa SVG do conjunto [Lucide](https://lucide.dev/) (ISC license)
 ## Stack
 
 - [Electron](https://www.electronjs.org/) — runtime desktop
-- JavaScript puro no front-end (sem React/Vue/framework nenhum) e CSS com variáveis para os temas
+- JavaScript puro no front-end (sem React/Vue/framework nenhum) e CSS com variáveis para os temas — `src/html/css/Theme.css` concentra tanto a paleta (`--bg-rgb`, `--accent-rgb`, ...) quanto a forma (fonte, arredondamento, contorno e sombra dos cartões), e é o único arquivo que as cinco janelas carregam em comum
 - [electron-builder](https://www.electron.build/) — empacotamento e instalador NSIS
 - [Lucide](https://lucide.dev/) — conjunto de ícones SVG da interface
 - Google Calendar API v3, via `fetch` nativo do Node/Electron (sem SDK) — só para quem conectar a sincronização

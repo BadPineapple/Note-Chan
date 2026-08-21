@@ -6,7 +6,7 @@
 html, body {
   margin: 0;
   padding: 0;
-  font-family: 'Segoe UI', Tahoma, sans-serif;
+  font-family: var(--nc-fonte-ui, 'Segoe UI', Tahoma, sans-serif);
   background: rgb(var(--bg-rgb, 30 30 30) / 0.97);
   color: rgb(var(--panel-text-rgb, 255 255 255));
 }
@@ -23,6 +23,17 @@ html, body {
   flex-direction: column;
   padding: 14px 18px 0;
   box-sizing: border-box;
+  /* Entrada da janela. Roda no primeiro quadro visível porque o Main.js só
+     mostra a janela no ready-to-show -- antes disso ela abria já pintada e
+     parada, o que dava um "tranco" comparado às outras janelas do app.
+     translateY negativo (e não positivo) de propósito: descer empurraria a
+     borda de baixo pra fora e o body ganharia barra de rolagem. */
+  animation: settings-entrada 0.22s ease both;
+}
+
+@keyframes settings-entrada {
+  from { opacity: 0; transform: translateY(-6px); }
+  to   { opacity: 1; transform: none; }
 }
 
 section {
@@ -48,7 +59,7 @@ section {
   color: rgb(var(--panel-text-rgb));
   opacity: 0.7;
   border: none;
-  border-radius: 8px;
+  border-radius: var(--nc-raio-card, 8px);
   font-family: inherit;
   font-size: 0.92em;
   cursor: pointer;
@@ -81,7 +92,7 @@ section {
   background: rgb(var(--bg-rgb) / 0.5);
   color: rgb(var(--accent-rgb));
   border: none;
-  border-radius: 7px;
+  border-radius: var(--nc-raio-ctrl, 7px);
   font-family: inherit;
   font-size: 0.95em;
   cursor: pointer;
@@ -105,7 +116,7 @@ section {
   background: rgb(var(--bg-rgb) / 0.5);
   color: rgb(var(--accent-rgb));
   border: none;
-  border-radius: 7px;
+  border-radius: var(--nc-raio-ctrl, 7px);
   font-family: inherit;
   font-size: 0.95em;
   cursor: pointer;
@@ -141,7 +152,7 @@ h2 {
   align-items: center;
   gap: 8px;
   padding: 8px 10px;
-  border-radius: 8px;
+  border-radius: var(--nc-raio-card, 8px);
   border: 2px solid transparent;
   background: rgb(var(--bg-rgb) / 0.5);
   color: rgb(var(--panel-text-rgb));
@@ -229,7 +240,7 @@ h2 {
   background: rgb(var(--bg-rgb) / 0.5);
   color: rgb(var(--accent-rgb));
   border: 1px solid rgb(var(--accent-rgb) / 0.3);
-  border-radius: 6px;
+  border-radius: var(--nc-raio-ctrl, 7px);
   font-family: inherit;
   font-size: 0.95em;
   cursor: pointer;
@@ -267,7 +278,7 @@ h2 {
   background: rgb(var(--bg-rgb) / 0.5);
   color: rgb(var(--accent-rgb));
   border: none;
-  border-radius: 7px;
+  border-radius: var(--nc-raio-ctrl, 7px);
   font-family: inherit;
   font-size: 0.95em;
   cursor: pointer;
@@ -305,7 +316,7 @@ h2 {
   min-width: 96px;
   padding: 5px 6px;
   border: none;
-  border-radius: 6px;
+  border-radius: var(--nc-raio-ctrl, 7px);
   background: rgb(var(--bg-rgb) / 0.5);
   color: rgb(var(--accent-rgb));
   font-family: inherit;
@@ -392,7 +403,7 @@ h2 {
   align-items: center;
   justify-content: space-between;
   padding: 6px 10px;
-  border-radius: 8px;
+  border-radius: var(--nc-raio-card, 8px);
   border: 2px solid transparent;
   background: rgb(var(--bg-rgb) / 0.5);
   cursor: pointer;
