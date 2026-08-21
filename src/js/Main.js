@@ -304,6 +304,7 @@ ipcMain.on("save-settings", (event, settings) => {
 
 ipcMain.on("open-settings", () => openSettingsWindow());
 ipcMain.on("close-settings", () => settingsWindow?.close());
+ipcMain.on("settings-minimize", () => settingsWindow?.minimize());
 
 ipcMain.on("quick-capture-submit", (event, text) => {
     const trimmed = (text || "").trim();
@@ -578,13 +579,19 @@ function createSettingsWindow() {
         width: 380,
         height: 620,
         resizable: false,
+        // Continua valendo como nome na barra de tarefas, mesmo sem moldura.
         title: "Configurações — Note-Chan",
-        autoHideMenuBar: true,
+        // Frameless igual às outras quatro janelas: esta era a única que
+        // ainda vinha com a moldura do Windows, o que destoava do resto do
+        // app e ignorava o tema. A barra de título passa a ser desenhada
+        // aqui dentro (#settings-dragbar), como a janela de nota já fazia.
+        // Sem moldura não existe barra de menu, então autoHideMenuBar e
+        // setMenuBarVisibility saíram junto -- não faziam mais nada.
+        frame: false,
         show: false,          // mesma ideia da janela de nota: só aparece pronta
         webPreferences: SECURE_PREFS
     });
 
-    settingsWindow.setMenuBarVisibility(false);
     settingsWindow.loadFile(path.join(__dirname, "../html/settings.html"));
 
     // Sem isto a janela abria vazia e ia se preenchendo à vista. Esperar o

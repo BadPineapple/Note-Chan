@@ -10,7 +10,7 @@ const RECEIVE = new Set([
 // Mensagens fire-and-forget do renderer para o main
 const SEND = new Set([
     "quit-app", "close-widget", "collapse-widget", "expand-widget", "save-data", "open-link",
-    "save-settings", "open-settings", "close-settings",
+    "save-settings", "open-settings", "close-settings", "settings-minimize",
     "quick-capture-submit", "quick-capture-cancel",
     "alarm-stop", "alarm-snooze",
     "open-note-window", "note-save", "note-close", "note-minimize",

@@ -15,14 +15,19 @@ html, body {
 *, *::before, *::after { box-sizing: border-box; }
 
 /* Style.css (compartilhado com o widget) põe overflow:hidden em html/body —
-   aqui a janela tem moldura de verdade e conteúdo que pode crescer (mais
-   temas, atalhos, footer...), então cada aba rola por conta própria em vez
-   de cortar o que não cabe nos 620px fixos da janela. */
+   aqui o conteúdo pode crescer (mais temas, atalhos, footer...), então cada
+   aba rola por conta própria em vez de cortar o que não cabe nos 620px
+   fixos da janela.
+
+   Sem padding próprio de propósito, pelo mesmo motivo do #panel no
+   Style.css: a barra de título precisa encostar nas três bordas de cima,
+   senão sobra uma faixa da cor de fundo em volta dela. Quem cuida do
+   respiro lateral são as abas e os painéis, cada um com o seu. */
 #settings-container {
   height: 100vh;
   display: flex;
   flex-direction: column;
-  padding: 14px 18px 0;
+  padding: 0;
   box-sizing: border-box;
   /* Entrada da janela. Roda no primeiro quadro visível porque o Main.js só
      mostra a janela no ready-to-show -- antes disso ela abria já pintada e
@@ -41,12 +46,64 @@ section {
   margin-bottom: 20px;
 }
 
+/* ────────────────────────  Barra de título do settings  ──────────────────── */
+/* Mesma barra da janela de nota (#note-dragbar em note_style.css): esta
+   janela é frameless, então quem desenha o título e os botões é o HTML.
+   O padding-right abre espaço fixo para os dois botões, que ficam ancorados
+   à direita fora do fluxo. */
+#settings-dragbar {
+  position: relative;
+  flex: 0 0 auto;
+  height: 32px;
+  line-height: 32px;
+  padding-left: 8px;
+  padding-right: 56px;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  background: rgb(var(--dragbar-rgb, 10 10 10) / var(--dragbar-alpha, 0.3));
+  color: rgb(var(--accent-rgb, 255 215 0));
+  font-family: var(--nc-fonte-titulo, inherit);
+  font-weight: bold;
+  letter-spacing: 0.5px;
+  -webkit-app-region: drag;
+  user-select: none;
+}
+
+#settings-dragbar-icon {
+  display: inline-flex;
+  flex: 0 0 auto;
+}
+
+#settings-dragbar-title {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 0.9em;
+}
+
+/* no-drag, senão arrastar em cima do botão moveria a janela em vez de clicar */
+#settings-window-btns {
+  position: absolute;
+  top: 0;
+  right: 5px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  -webkit-app-region: no-drag;
+}
+
+/* .window-btn vem do Style.css, que esta janela já carrega. */
+#settings-closebtn:hover { background: rgb(var(--danger-rgb, 255 128 128) / 0.25); }
+
 /* ────────────────────────────  Abas do settings  ─────────────────────────── */
 #settings-tabs {
   flex-shrink: 0;
   display: flex;
   gap: 6px;
-  margin-bottom: 16px;
+  margin: 14px 18px 16px;
 }
 
 .stab-btn {
@@ -80,7 +137,7 @@ section {
   flex: 1;
   min-height: 0;
   overflow-y: auto;
-  padding-bottom: 18px;
+  padding: 0 18px 18px;
 }
 .stab-panel.active::-webkit-scrollbar { width: 6px; }
 .stab-panel.active::-webkit-scrollbar-thumb { background: rgb(var(--accent-rgb) / 0.25); border-radius: 4px; }

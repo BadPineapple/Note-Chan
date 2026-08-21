@@ -325,6 +325,19 @@ window.addEventListener("beforeunload", () => {
     flushPendingSaves();
 });
 
+/* ═════════════════════════════  BARRA DE TÍTULO  ══════════════════════════ */
+// A janela é frameless (ver createSettingsWindow em Main.js), então minimizar
+// e fechar são botões daqui. Fechar passa pelo mesmo caminho do X nativo de
+// antes -- o main chama close() na janela, então o beforeunload lá em cima
+// continua rodando e descartando o que ficou pela metade.
+
+document.getElementById("settings-minbtn").addEventListener("click", () => {
+    window.api.send("settings-minimize");
+});
+document.getElementById("settings-closebtn").addEventListener("click", () => {
+    window.api.send("close-settings");
+});
+
 /* ══════════════════════════════  ABAS DO SETTINGS  ════════════════════════ */
 
 const stabButtons = document.querySelectorAll(".stab-btn");
