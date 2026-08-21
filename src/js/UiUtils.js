@@ -1,9 +1,4 @@
-/* ──────────────────────────────  UiUtils.js  ─────────────────────────────
-   Utilidades de interface que o widget e a janela de Configurações usavam
-   duplicadas (as duas montam cards do mesmo jeito, com o mesmo escape e a
-   mesma confirmação de exclusão). Mesmo padrão UMD do EventUtils.js /
-   TagUtils.js, mas na prática só é carregado nos renderers.
-*/
+/* ──────────────────────────────  UiUtils.js  ───────────────────────────── */
 (function (factory) {
     if (typeof module === "object" && module.exports) {
         module.exports = factory();
@@ -15,11 +10,6 @@
         return crypto.randomUUID();
     }
 
-    // textContent -> innerHTML escapa & < >, mas NÃO aspas -- e o resultado é
-    // interpolado dentro de atributos (value="${...}") em vários pontos, onde
-    // uma aspa fecharia o atributo e injetaria markup. Não é hipotético: o
-    // link de um evento pode vir da description de um convite recebido no
-    // Google Agenda, ou seja, texto de terceiro.
     function escapeHtml(str) {
         const div = document.createElement("div");
         div.textContent = str ?? "";
@@ -32,12 +22,6 @@
         return `${d}/${m}`;
     }
 
-    // window.confirm() é um diálogo NATIVO e bloqueante — na janela do widget
-    // (alwaysOnTop no nível "screen-saver", o mais alto do Windows) ele abre
-    // escondido atrás do próprio widget, mas ainda assim trava a thread de JS
-    // esperando resposta. Resultado: tudo parece travado até o usuário mexer
-    // em outra janela por acaso. Por isso exclusão é confirmada com dois
-    // cliques no próprio botão, sem diálogo nenhum.
     function armDeleteConfirm(btn, onConfirm) {
         if (btn.classList.contains("confirm-armed")) {
             clearTimeout(btn._armTimer);
@@ -52,16 +36,6 @@
         }, 2500);
     }
 
-    // Onde o último clique COMEÇOU. O focusout dispara no mousedown, antes do
-    // evento de click, e nesse intervalo document.activeElement já é o <body>
-    // -- ou seja, "o foco saiu do card" parece verdade mesmo com o usuário
-    // clicando dentro do próprio card. Quem recolhe/descarta card no focusout
-    // precisa dessa distinção, senão o card fecha no mousedown e o click
-    // seguinte, vendo o card já fechado, reabre.
-    //
-    // A janela de 700 ms existe porque nada "limpa" esse registro: um clique
-    // fora gera um pointerdown novo (o caso comum), mas sair do card só com
-    // Tab não gera nenhum -- aí o registro velho não pode continuar valendo.
     const POINTER_RECENT_MS = 700;
     let lastPointerDown = { target: null, at: 0 };
 

@@ -1,12 +1,4 @@
-/* ═══════════════════════════  note_style.css  ═════════════════════════════
-   Nota aberta em janela própria ("modo bloco de notas"). Diferente do
-   widget, esta janela NÃO é transparente nem ancorada: é redimensionável,
-   aparece na barra de tarefas e o fundo é opaco, porque aqui o objetivo é
-   escrever texto longo e não ficar espiando a tela por baixo.
-
-   A moldura é frameless igual às outras janelas do app, então a barra de
-   título é desenhada aqui (#note-dragbar, com -webkit-app-region: drag).
-*/
+/* ═══════════════════════════  note_style.css  ═════════════════════════════ */
 
 * { box-sizing: border-box; }
 
@@ -17,6 +9,7 @@ html, body {
   overflow: hidden;
   font-family: var(--nc-fonte-ui, 'Segoe UI', Tahoma, sans-serif);
   background: rgb(var(--bg-rgb, 30 30 30));
+  background-image: var(--nc-textura, none);
   color: rgb(var(--panel-text-rgb, 255 255 255));
 }
 
@@ -40,6 +33,7 @@ html, body {
   gap: 5px;
   background: rgb(var(--dragbar-rgb, 10 10 10) / var(--dragbar-alpha, 0.3));
   color: rgb(var(--accent-rgb, 255 215 0));
+  font-family: var(--nc-fonte-titulo, inherit);
   font-weight: bold;
   letter-spacing: 0.5px;
   -webkit-app-region: drag;
@@ -98,7 +92,7 @@ html, body {
   border-bottom: 1px solid rgb(var(--nc-traco-rgb, 255 255 255) / 0.12);
   background: none;
   color: rgb(var(--accent-rgb, 255 215 0));
-  font-family: inherit;
+  font-family: var(--nc-fonte-titulo, inherit);
   font-size: 1.05em;
   font-weight: bold;
   outline: none;

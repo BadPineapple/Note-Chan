@@ -1,7 +1,4 @@
 /* ────────────────────────────────  Alarm.js  ─────────────────────────────── */
-// O bichinho virtual "empresta a cara" pro alarme -- mesmo desenho e humor
-// do painel dele no widget (ver TamaSprite.js), com uma linha de intro
-// variada em vez do "Evento" seco de antes.
 
 Log.iniciar("alarme");
 
@@ -43,4 +40,6 @@ document.getElementById("alarm-snooze-btn").addEventListener("click", () => {
 });
 
 window.api.on("apply-settings", applyTheme);
-window.api.invoke("get-data").then(loaded => applyTheme(loaded.settings));
+window.api.invoke("get-data")
+    .then(loaded => applyTheme(loaded.settings))
+    .catch(e => Log.error("[BOOT] get-data falhou, tema fica no padrão:", e.message));

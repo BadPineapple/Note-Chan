@@ -26,8 +26,12 @@ svg { vertical-align: -2px; flex-shrink: 0; }
   padding: 20px;
   text-align: center;
   background: rgb(var(--bg-rgb, 30 30 30) / 0.97);
+  background-image: var(--nc-textura, none);
   border: 2px solid rgb(var(--accent-rgb, 255 215 0) / 0.55);
-  border-radius: calc(var(--nc-raio-painel, 12px) + 10px);
+  /* Token próprio, e não calc() em cima do raio do painel: um tema pode pôr
+     um raio por canto aqui, e valor de vários termos dentro de calc() é
+     inválido -- a declaração inteira cairia e o diálogo ficaria quadrado. */
+  border-radius: var(--nc-raio-dialogo, 22px);
   box-shadow: 0 10px 34px #000a;
 }
 

@@ -1,11 +1,5 @@
-/* ─────────────────────────────  GoogleAuth.js  ───────────────────────────
-   Login OAuth com o Google (fluxo padrão de "app instalado" com PKCE):
-   abre o navegador do sistema, sobe um servidorzinho HTTP local só pra
-   capturar o "code" do redirect, troca por tokens. O refresh_token fica
-   salvo criptografado (safeStorage) em vez de texto puro -- é a credencial
-   de longa duração, o access_token (1h) nunca é persistido, só fica em
-   memória e é renovado sob demanda.
-*/
+/* ─────────────────────────────  GoogleAuth.js  ─────────────────────────── */
+
 const { shell, safeStorage } = require("electron");
 const http = require("http");
 const crypto = require("crypto");
@@ -18,8 +12,6 @@ let config = null;
 try {
     config = require("./GoogleAuthConfig");
 } catch {
-    // GoogleAuthConfig.js não existe (gitignored, precisa ser criado a
-    // partir do .example.js) -- funcionalidade fica desabilitada, não é erro.
 }
 
 const TOKEN_PATH = path.join(PATHS.userData, "google-auth.enc");
@@ -128,8 +120,6 @@ async function fetchUserEmail(token) {
     }
 }
 
-// Sobe o servidor local, abre o navegador, espera o redirect com o "code" e
-// troca por tokens. Resolve com { email } ou rejeita com uma mensagem legível.
 function startOAuthFlow() {
     return new Promise((resolve, reject) => {
         if (!config) { reject(new Error("Google não configurado (GoogleAuthConfig.js ausente).")); return; }
@@ -226,8 +216,6 @@ async function refreshAccessToken() {
     if (!res.ok) {
         const text = await res.text();
         if (res.status === 400 || res.status === 401) {
-            // refresh_token revogado/inválido (ex.: usuário removeu o acesso
-            // pela conta Google) -- não adianta insistir, desconecta de vez.
             warn("[GOOGLE] Token de renovação inválido, desconectando:", text);
             clearToken();
         }
@@ -260,7 +248,5 @@ async function disconnect() {
 
 module.exports = {
     isConfigured, isConnected, getEmail, startOAuthFlow, disconnect, getValidAccessToken,
-    // safeStorage só pode ser usado depois de app.whenReady() -- Main.js chama
-    // isto explicitamente no boot, em vez de carregar direto ao importar o módulo.
     loadStoredToken
 };

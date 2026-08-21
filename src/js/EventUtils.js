@@ -1,7 +1,4 @@
 /* ──────────────────────────────  EventUtils.js  ─────────────────────────── */
-// Funções puras de calendário/recorrência. Compartilhado entre o processo
-// principal (via require) e o renderer sandboxed (via <script> global) —
-// por isso o wrapper UMD abaixo em vez de só module.exports.
 (function (factory) {
     if (typeof module === "object" && module.exports) {
         module.exports = factory();
@@ -19,13 +16,6 @@
         return toISODate(new Date());
     }
 
-    // Avança uma data (YYYY-MM-DD) um período de recorrência. 'none' não tem
-    // próxima ocorrência.
-    //
-    // Mensal/anual usam setDate(1) antes de mexer no mês/ano pra nunca
-    // passar por um dia inválido no meio do caminho, e depois grudam
-    // (clamp) no último dia do mês de destino se ele não existir — ex.:
-    // 31/jan mensal cai em 28/fev (ou 29 em ano bissexto), não em 3/mar.
     function addInterval(dateStr, recurrence) {
         const [y, m, d] = dateStr.split("-").map(Number);
         const dt = new Date(y, m - 1, d);
@@ -48,8 +38,6 @@
         return toISODate(dt);
     }
 
-    // Dias inteiros de 'fromISO' até 'toISO' (negativo se toISO for antes).
-    // Date.UTC dos dois lados pra não sofrer com horário de verão no meio.
     function daysBetween(fromISO, toISO) {
         const [fy, fm, fd] = fromISO.split("-").map(Number);
         const [ty, tm, td] = toISO.split("-").map(Number);
@@ -61,9 +49,6 @@
         return toISODate(new Date(y, m - 1, d + days));
     }
 
-    // Empurra a ocorrência até alcançar hoje. Diário/semanal fazem a conta de
-    // uma vez (um evento diário de anos atrás daria milhares de voltas num
-    // laço); mensal/anual iteram, que são poucas voltas por natureza.
     function fastForwardToToday(occ, recurrence, today) {
         const behind = daysBetween(occ, today);
         if (behind <= 0) return occ;
@@ -76,15 +61,6 @@
         return occ;
     }
 
-    // Primeira ocorrência ainda "em aberto": nem já passou, nem confirmada em
-    // completedDates. null = evento não recorrente já concluído.
-    //
-    // Evento RECORRENTE pula sozinho as ocorrências cuja data já passou --
-    // sem isso ele ficava travado na primeira data até o usuário marcar
-    // aquela ocorrência como feita, e o alarme (que compara com
-    // evt.lastNotified, ver Main.js) só tocava uma vez na vida.
-    // Evento ÚNICO atrasado continua aparecendo como atrasado de propósito:
-    // ali a data que passou é justamente o que precisa chamar atenção.
     function getNextOccurrence(event, today = todayISO()) {
         const completed = event.completedDates || [];
         if (!event.recurrence || event.recurrence === "none") {
@@ -108,8 +84,6 @@
         return new Date(y, m - 1, d, 0, 0, 0, 0);
     }
 
-    // Ordena por próxima ocorrência (mais cedo primeiro); eventos já
-    // concluídos (sem próxima ocorrência) vão para o fim.
     function compareByOccurrence(a, b) {
         const occA = getNextOccurrence(a);
         const occB = getNextOccurrence(b);
@@ -122,10 +96,6 @@
         return ta < tb ? -1 : ta > tb ? 1 : 0;
     }
 
-    // Próximo aniversário (mês/dia de dateStr) a partir de hoje — hoje conta
-    // como "próximo". Ao contrário de getNextOccurrence, não depende de
-    // completedDates: aniversário não é tarefa, sempre volta todo ano.
-    // 29/fev em ano não bissexto cai em 28/fev (mesmo clamp de addInterval).
     function nextBirthdayOccurrence(dateStr, today = todayISO()) {
         const [, m, d] = dateStr.split("-").map(Number);
         const [ty] = today.split("-").map(Number);
@@ -140,8 +110,6 @@
         return thisYear >= today ? thisYear : occurrenceInYear(ty + 1);
     }
 
-    // Idade que a pessoa faz na ocorrência calculada acima (null se o ano
-    // de nascimento não parecer real — ex.: usuário deixou um ano futuro).
     function ageAtOccurrence(dateStr, occDate) {
         const [by] = dateStr.split("-").map(Number);
         const [oy] = occDate.split("-").map(Number);

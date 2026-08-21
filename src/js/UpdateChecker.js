@@ -1,14 +1,4 @@
-/* ────────────────────────────  UpdateChecker.js  ──────────────────────────
-   Verificação de versão contra os releases do GitHub. Só CONSULTA e avisa --
-   não baixa nem instala nada sozinho (decisão explícita: ver README). Por
-   isso não usa electron-updater; é só um GET na API pública com o fetch
-   nativo do Node/Electron, e o app continua sem nenhuma dependência de
-   runtime.
-
-   Falha de rede aqui nunca é erro do app: sem internet, atrás de proxy ou
-   com o repositório ainda sem release publicado, a resposta é "não deu pra
-   verificar" e a vida segue.
-*/
+/* ────────────────────────────  UpdateChecker.js  ────────────────────────── */
 const { app } = require("electron");
 const { log, warn } = require("./Logger");
 
@@ -18,10 +8,6 @@ const RELEASES_PAGE = `https://github.com/${REPO}/releases/latest`;
 const REQUEST_TIMEOUT_MS = 10000;
 
 /* ══════════════════════════  COMPARAÇÃO DE VERSÃO  ═══════════════════════ */
-
-// "v1.3.0" / "1.3" / "1.3.0-beta.2" -> [1, 3, 0]. Descarta o "v" que o
-// GitHub costuma pôr na tag e o sufixo de pré-lançamento (tratado à parte
-// em isNewer). null quando não parece uma versão.
 function parseVersion(value) {
     const core = String(value || "").trim().replace(/^v/i, "").split(/[-+]/)[0];
     if (!core) return null;
@@ -44,9 +30,6 @@ function isNewer(remote, local) {
         if (a[i] > b[i]) return true;
         if (a[i] < b[i]) return false;
     }
-    // Núcleo igual: pré-lançamento vale MENOS que a versão final, então
-    // 1.3.0-beta não é atualização pra quem já está na 1.3.0 -- mas 1.3.0 é
-    // atualização pra quem está na 1.3.0-beta.
     if (isPreRelease(remote) && !isPreRelease(local)) return false;
     if (!isPreRelease(remote) && isPreRelease(local)) return true;
     return false;
@@ -58,14 +41,11 @@ async function fetchLatestRelease() {
     const res = await fetch(RELEASES_API, {
         headers: {
             Accept: "application/vnd.github+json",
-            // A API do GitHub rejeita requisição sem User-Agent.
             "User-Agent": `Note-Chan/${app.getVersion()}`
         },
         signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS)
     });
 
-    // 404 = repositório ainda sem nenhum release publicado. É um estado
-    // normal (o primeiro lançamento ainda não saiu), não uma falha.
     if (res.status === 404) return null;
     if (!res.ok) throw new Error(`GitHub respondeu ${res.status}`);
 
@@ -75,7 +55,6 @@ async function fetchLatestRelease() {
     return { version, url: json.html_url || RELEASES_PAGE, publishedAt: json.published_at || null };
 }
 
-// { ok, updateAvailable, current, latest?, url?, publishedAt?, error? }
 async function check() {
     const current = app.getVersion();
     try {

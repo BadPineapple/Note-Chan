@@ -1,6 +1,4 @@
 // src/js/Paths.js
-// ATENÇÃO: este módulo NÃO deve importar Logger ou DataManager.
-// Eles dependem dele — importar algo daqui pra lá cria ciclo.
 const path = require("path");
 const fs   = require("fs");
 
@@ -12,7 +10,6 @@ if (process.type !== "browser") {
 
 const { app } = require("electron");
 
-// setName ANTES de qualquer getPath(): o Electron cacheia o diretório.
 app.setName(APP_FOLDER);
 
 const userData = app.getPath("userData");

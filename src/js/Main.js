@@ -2,8 +2,6 @@
 const { app, Tray, Menu, BrowserWindow, ipcMain, nativeImage, screen, shell, globalShortcut, Notification } = require("electron");
 const path = require("path");
 
-// PATHS PRECISA SER O PRIMEIRO MÓDULO INTERNO — define app.setName() antes
-// de qualquer getPath(), senão o Electron cacheia o diretório errado.
 const PATHS = require("./Paths");
 
 const { loadData, saveData, saveDataSync } = require("./DataManager");
@@ -21,8 +19,6 @@ if (!app.requestSingleInstanceLock()) {
     return;
 }
 
-// Antes de qualquer outra coisa: o que estoura durante o boot é o mais
-// difícil de diagnosticar sem registro.
 capturarFalhasDoProcesso();
 
 log("=== Note-Chan iniciado === versão", app.getVersion());
@@ -48,44 +44,20 @@ const SECURE_PREFS = {
     preload: path.join(__dirname, "preload.js")
 };
 
-// Widget "de dock": duas medidas fixas, sempre ancorado no canto inferior
-// esquerdo da área útil da tela (workArea já exclui a barra de tarefas,
-// não importa a borda em que ela esteja — se não houver barra de tarefas
-// embaixo, workArea vai até a borda física da tela).
-// No modo bandeja só a barra de título fica visível (mesma largura do
-// painel expandido) — ver #container.collapsed em Style.css. Precisa bater
-// EXATAMENTE com a altura do #dragbar (32px, sem padding do #panel ao
-// redor — ver comentário em Style.css), senão sobra uma faixa da cor de
-// fundo do painel acima/abaixo do cabeçalho no modo bandeja.
 const DOCK_HEADER_HEIGHT = 32;
 const DOCK_MARGIN = 2;
-
-// Transição bandeja <-> expandido. Como o widget é frameless e ancorado na
-// borda de baixo, quem "abre" e "fecha" é a própria janela mudando de altura
-// -- não existe nada em CSS que possa fazer isso, o conteúdo só é cortado
-// pelo tamanho da janela. E o flag `animate` do setBounds só vale no macOS,
-// então a interpolação é feita aqui, quadro a quadro.
 const DOCK_ANIM_MS = 190;
 const DOCK_ANIM_FRAME_MS = 16;
 let dockAnimTimer = null;
-
-// Checagem periódica de notificações de eventos, e a "janela de tolerância":
-// além dela um horário perdido (app fechado/dormindo) não dispara mais,
-// só fica marcado como já visto pra não notificar tarde demais.
 const NOTIFY_CHECK_INTERVAL_MS = 30 * 1000;
 const NOTIFY_GRACE_MS = 15 * 60 * 1000;
 
 const ALARM_SIZE = { width: 340, height: 300 };
 const SNOOZE_MS = 5 * 60 * 1000;
-
-// Sincronização de fundo com o Google. Sem ela, quem deixa o widget aberto o
-// dia inteiro nunca sincroniza -- as outras duas portas de entrada são a
-// transição bandeja -> expandido e o botão em Configurações.
 const GOOGLE_SYNC_INTERVAL_MS = 15 * 60 * 1000;
 
 /* ═════════════════════════════  UTILITÁRIOS  ════════════════════════════ */
 
-// Coalesce gravações disparadas por eventos de alta frequência
 function debouncedSaveData(delay = 500) {
     clearTimeout(saveTimer);
     saveTimer = setTimeout(() => {
@@ -109,14 +81,8 @@ function computeBounds(collapsed) {
     };
 }
 
-// easeOutCubic: anda rápido no começo e desacelera no fim, que é o que dá
-// a sensação de assentar no lugar em vez de parar seco.
 function easeOutCubic(t) { return 1 - Math.pow(1 - t, 3); }
 
-// Interpola só a altura: x, largura e a borda de baixo ficam parados, senão
-// o widget pareceria escorregar pela tela em vez de abrir no lugar. onDone
-// roda no fim -- é por ele que o renderer descobre a hora de esconder o
-// conteúdo (ver setMode).
 function animateWidgetBounds(target, onDone) {
     clearInterval(dockAnimTimer);
     dockAnimTimer = null;
@@ -124,10 +90,8 @@ function animateWidgetBounds(target, onDone) {
     if (!widgetWindow || widgetWindow.isDestroyed()) { onDone?.(); return; }
 
     const from = widgetWindow.getBounds();
-    const base = target.y + target.height;   // borda de baixo, a que não se mexe
+    const base = target.y + target.height;   
 
-    // Sem altura pra percorrer, ou com a janela escondida (atalho global de
-    // mostrar/ocultar), animar seria só gastar quadro à toa.
     if (from.height === target.height || !widgetWindow.isVisible()) {
         widgetWindow.setBounds(target, false);
         onDone?.();
@@ -143,8 +107,6 @@ function animateWidgetBounds(target, onDone) {
 
         if (!widgetWindow || widgetWindow.isDestroyed()) { fim(); return; }
 
-        // Escondeu no meio do caminho: corta a animação, mas ainda deixa a
-        // janela no tamanho certo pra reaparecer já no modo novo.
         if (!widgetWindow.isVisible()) {
             fim();
             widgetWindow.setBounds(target, false);
@@ -158,7 +120,7 @@ function animateWidgetBounds(target, onDone) {
 
         if (t >= 1) {
             fim();
-            widgetWindow.setBounds(target, false);   // fecha no valor exato, sem sobra de arredondamento
+            widgetWindow.setBounds(target, false);  
             onDone?.();
         }
     }, DOCK_ANIM_FRAME_MS);
@@ -170,10 +132,6 @@ function setMode(collapsed) {
     data.widget.collapsed = collapsed;
     debouncedSaveData();
 
-    // "Abrir o app" (sair da bandeja) é o gatilho dos eventos sem horário do
-    // dia (ver checkNoTimeEventsToday) e da sincronização com o Google -- só
-    // na transição de verdade, não em toda chamada (ex.: reaplicar o mesmo
-    // modo). Sync roda em segundo plano, sem travar a expansão da janela.
     if (wasCollapsed && !collapsed) {
         checkNoTimeEventsToday();
         if (GoogleAuth.isConnected()) runGoogleSync();
@@ -181,12 +139,6 @@ function setMode(collapsed) {
 
     if (!widgetWindow || widgetWindow.isDestroyed()) return;
 
-    // A ordem entre avisar o renderer e animar a janela muda conforme o lado
-    // da transição. Recolhendo, o conteúdo tem que continuar montado enquanto
-    // a janela encolhe por cima dele -- a classe .collapsed, que o esconde de
-    // vez, só entra no fim; do contrário o painel esvaziaria antes de acabar
-    // de fechar. Expandindo é o inverso: o conteúdo precisa estar lá antes de
-    // a janela crescer, senão a área nova abre vazia e preenche depois.
     const alvo = computeBounds(collapsed);
     const avisar = (modo) => {
         if (widgetWindow && !widgetWindow.isDestroyed()) widgetWindow.webContents.send("set-mode", modo);
@@ -198,21 +150,11 @@ function setMode(collapsed) {
 
 /* ══════════════════════════════  IPC  ════════════════════════════════════ */
 
-// Linha de log de uma janela. Renderer em sandbox não escreve em disco,
-// então quem grava é sempre este lado (ver Logger.js).
 ipcMain.on("log-entry", (event, entrada) => registrarDeRenderer(entrada));
 
 ipcMain.handle("get-data", () => data);
 ipcMain.handle("get-app-version", () => app.getVersion());
 
-// Notas e listas são de propriedade do renderer. Eventos e aniversariantes
-// têm campos de propriedade do MAIN (lastNotified/lastNoTimeNotified,
-// googleEventId) que o renderer nunca vê -- por isso são mesclados por id
-// preservando esses campos, senão qualquer edição no renderer apagaria o
-// vínculo com o Google e duplicaria notificações. Itens que existiam antes
-// e sumiram do payload foram excluídos no renderer -- se tinham
-// googleEventId, entram na fila pra excluir no Google na próxima sync (ver
-// GoogleCalendarSync.js).
 function queueGoogleDeletes(removed) {
     const ids = removed.filter(item => item.googleEventId).map(item => item.googleEventId);
     if (ids.length) data.googleSync.pendingDeletes.push(...ids);
@@ -234,8 +176,6 @@ ipcMain.on("save-data", (event, payload) => {
     if (!payload) return;
     if (Array.isArray(payload.notes)) {
         data.notes = payload.notes;
-        // A mesma nota pode estar aberta em janela própria — leva a edição
-        // do widget pra lá (e fecha a janela se a nota foi excluída aqui).
         syncNoteWindows();
     }
     data.lists = Array.isArray(payload.lists) ? payload.lists : data.lists;
@@ -246,8 +186,6 @@ ipcMain.on("save-data", (event, payload) => {
         data.events = mergeMainOwnedList(data.events, payload.events, ["lastNotified", "lastNoTimeNotified", "googleEventId", "googleSyncedAt", "foreign"]);
     }
     if (Array.isArray(payload.tags)) {
-        // Tag removida em Configurações — tira o id de todo item que ainda
-        // apontava pra ela, senão fica referência órfã espalhada pelos dados.
         const removedIds = data.tags
             .filter(t => !payload.tags.some(nt => nt.id === t.id))
             .map(t => t.id);
@@ -267,9 +205,6 @@ ipcMain.on("save-data", (event, payload) => {
         data.widget.activeTab = payload.widget.activeTab;
     }
     if (payload.tamagotchi) {
-        // lastLowNotified é controlado só pelo main (ver checkTamaNotifications)
-        // -- o renderer nunca sabe desse campo, então preservar evita que
-        // cada save do widget reset o cooldown dos avisos de status baixo.
         data.tamagotchi = {
             ...data.tamagotchi,
             ...payload.tamagotchi,
@@ -279,8 +214,6 @@ ipcMain.on("save-data", (event, payload) => {
     debouncedSaveData();
 });
 
-// Configurações são de propriedade da janela de Configurações, mas
-// widget/captura rápida também precisam refletir mudanças ao vivo.
 ipcMain.on("save-settings", (event, settings) => {
     if (!settings) return;
     const shortcutsChanged =
@@ -304,6 +237,7 @@ ipcMain.on("save-settings", (event, settings) => {
 
 ipcMain.on("open-settings", () => openSettingsWindow());
 ipcMain.on("close-settings", () => settingsWindow?.close());
+ipcMain.on("settings-minimize", () => settingsWindow?.minimize());
 
 ipcMain.on("quick-capture-submit", (event, text) => {
     const trimmed = (text || "").trim();
@@ -328,11 +262,6 @@ ipcMain.on("quick-capture-cancel", () => hideQuickCapture());
 
 ipcMain.on("quit-app", () => { log("[APP] Saída solicitada pelo usuário."); app.quit(); });
 
-// O "✕"/Esc do widget recolhe pro modo bandeja primeiro (não some da tela
-// direto). Se já estiver em modo bandeja, esse mesmo "✕"/Esc agora esconde
-// a janela de vez (continua rodando na bandeja do sistema — só "Sair" no
-// menu da bandeja encerra o processo de verdade) — e fecha a janela de
-// Configurações junto, se estiver aberta.
 ipcMain.on("close-widget", () => {
     if (data.widget.collapsed) {
         widgetWindow?.hide();
@@ -345,32 +274,16 @@ ipcMain.on("close-widget", () => {
 ipcMain.on("collapse-widget", () => setMode(true));
 ipcMain.on("expand-widget", () => setMode(false));
 
-// Nada vai para o navegador do sistema sem passar por aqui. openExternal
-// com endereço de terceiro é caminho conhecido de abuso no Electron:
-// file:// apontando para caminho de rede, ou protocolo registrado por
-// outro programa na máquina. Só http e https saem.
 function urlExternaSegura(url) {
     if (typeof url !== "string" || !url.trim()) return null;
     const bruto = url.trim();
 
-    // Tenta como veio PRIMEIRO: se já tem esquema, ele manda. Completar com
-    // https:// antes de olhar transformava "file:///C:/..." em
-    // "https://file:///C:/...", que passava na checagem de protocolo
-    // justamente por já não ser mais file -- a validação dizia "recusado" e
-    // devolvia um endereço mesmo assim.
     let comEsquema = null;
     try { comEsquema = new URL(bruto); } catch { /* sem esquema: completa abaixo */ }
 
-    // Devolve sempre o .href (a forma normalizada pelo próprio parser), nunca
-    // o texto cru: assim o que vai para o navegador é exatamente o que foi
-    // validado aqui, sem uma segunda interpretação pelo caminho. É o que faz
-    // "\\servidor\pasta" virar "https://servidor/pasta" de forma explícita.
     const ehWeb = (u) => u.protocol === "http:" || u.protocol === "https:";
 
     if (comEsquema) {
-        // Custo aceito: "localhost:3000" é lido como esquema "localhost" e
-        // recusado. Quem quiser abrir isso escreve "http://localhost:3000" --
-        // melhor exigir o esquema explícito do que adivinhar e abrir errado.
         return ehWeb(comEsquema) ? comEsquema.href : null;
     }
 
@@ -398,10 +311,6 @@ function pushSyncedDataToRenderers() {
     settingsWindow?.webContents.send("birthdays-updated", data.birthdays);
 }
 
-// Uma sincronização por vez. Sem essa trava, abrir o widget e clicar
-// "Sincronizar agora" (ou recolher/expandir em sequência) dispara dois
-// pushNewLocalItems em paralelo -- os dois veem o mesmo evento ainda sem
-// googleEventId e criam o MESMO compromisso duas vezes na agenda.
 let syncInFlight = null;
 
 async function doGoogleSync() {
@@ -446,10 +355,6 @@ ipcMain.handle("google-disconnect", async () => {
 ipcMain.handle("google-sync-now", () => runGoogleSync());
 
 /* ══════════════════════════  ATUALIZAÇÃO DE VERSÃO  ══════════════════════ */
-// Só verifica e avisa -- baixar e instalar continua sendo decisão do
-// usuário (ver UpdateChecker.js e o README). A checagem automática roda no
-// máximo uma vez por dia e só no app instalado: em desenvolvimento a versão
-// é a do package.json e bater no GitHub a cada `npm start` não ajuda ninguém.
 
 const UPDATE_CHECK_INTERVAL_MS = 24 * 60 * 60 * 1000;
 const UPDATE_CHECK_BOOT_DELAY_MS = 20 * 1000; // não disputa com a abertura do app
@@ -461,8 +366,6 @@ function showUpdateNotification(result) {
         body: `A versão ${result.latest} saiu (você está na ${result.current}). Clique para abrir a página de download.`,
         icon: path.join(__dirname, "../../assets/img/icon.png")
     });
-    // O endereço vem da resposta da API do GitHub, ou seja, de fora --
-    // mesmo caminho de validação do link de evento.
     n.on("click", () => abrirNoNavegador(result.url, "(release)"));
     n.show();
 }
@@ -476,8 +379,6 @@ async function checkForUpdatesInBackground() {
     debouncedSaveData();
 
     if (!result.ok || !result.updateAvailable) return;
-    // Avisa uma vez por versão nova: quem viu e decidiu não atualizar agora
-    // não precisa ser lembrado todo dia.
     if (state.notifiedVersion === result.latest) return;
     state.notifiedVersion = result.latest;
     debouncedSaveData();
@@ -528,8 +429,6 @@ function createWidgetWindow() {
     log("[WINDOW] widget criado —", data.widget.collapsed ? "bandeja" : "expandido", "@", JSON.stringify(bounds));
 }
 
-// Reancora a janela quando a resolução, escala ou área útil da tela mudam
-// (ex.: usuário conecta um monitor, ou a barra de tarefas é escondida/movida)
 function repositionWidget() {
     if (!widgetWindow || widgetWindow.isDestroyed()) return;
     widgetWindow.setBounds(computeBounds(data.widget.collapsed), false);
@@ -545,10 +444,6 @@ function showWidget() {
     }
 }
 
-// "Abrir o Note-Chan" precisa abrir de verdade: só mostrar a janela deixaria
-// a barrinha do modo bandeja na tela, e nem a sincronização com o Google nem
-// o aviso de eventos do dia rodariam -- os dois estão presos à transição
-// bandeja -> expandido (ver setMode).
 function openWidgetExpanded() {
     showWidget();
     setMode(false);
@@ -579,18 +474,13 @@ function createSettingsWindow() {
         height: 620,
         resizable: false,
         title: "Configurações — Note-Chan",
-        autoHideMenuBar: true,
-        show: false,          // mesma ideia da janela de nota: só aparece pronta
+        frame: false,
+        show: false,      
         webPreferences: SECURE_PREFS
     });
 
-    settingsWindow.setMenuBarVisibility(false);
     settingsWindow.loadFile(path.join(__dirname, "../html/settings.html"));
 
-    // Sem isto a janela abria vazia e ia se preenchendo à vista. Esperar o
-    // primeiro quadro pronto tira o lampejo e ainda faz a entrada em CSS
-    // (#settings-container, em settings_style.css) começar junto com o show,
-    // em vez de ter passado enquanto a janela ainda estava invisível.
     settingsWindow.once("ready-to-show", () => {
         if (settingsWindow && !settingsWindow.isDestroyed()) {
             settingsWindow.show();
@@ -601,9 +491,6 @@ function createSettingsWindow() {
     log("[WINDOW] configurações criada");
 }
 
-// onReady roda depois que a janela existe E terminou de carregar — abrir
-// direto na aba de aniversariantes (via tray) precisa disso, senão o
-// quick-create pode chegar antes do Settings.js registrar o listener.
 function openSettingsWindow(onReady) {
     if (settingsWindow && !settingsWindow.isDestroyed()) {
         settingsWindow.show();
@@ -616,16 +503,8 @@ function openSettingsWindow(onReady) {
 }
 
 /* ═══════════════════  NOTA EM JANELA (BLOCO DE NOTAS)  ════════════════════ */
-// Uma nota aberta em janela própria: redimensionável, com entrada na barra
-// de tarefas e fundo opaco -- pra escrever texto longo sem o aperto do
-// widget ancorado no canto. Uma janela por nota (Map por id): pedir de novo
-// a mesma nota foca a janela existente em vez de abrir uma segunda.
 
 const noteWindows = new Map();
-// A largura mínima acompanha a barra de ferramentas: com alinhamento, bloco
-// de código e tamanho de fonte, os 11 controles pedem ~325px para caber numa
-// linha só. A barra quebra em duas se apertar (flex-wrap), mas aí a janela
-// perde altura de escrita à toa.
 const NOTE_WINDOW_MIN = { width: 380, height: 240 };
 const NOTE_WINDOW_DEFAULT = { width: 520, height: 460 };
 
@@ -633,8 +512,6 @@ function noteWindowBounds() {
     const { workArea } = screen.getPrimaryDisplay();
     const width = data.noteWindow?.width || NOTE_WINDOW_DEFAULT.width;
     const height = data.noteWindow?.height || NOTE_WINDOW_DEFAULT.height;
-    // Cascata curta pra segunda janela não nascer exatamente em cima da
-    // primeira e dar a impressão de que nada abriu.
     const offset = (noteWindows.size % 6) * 26;
     return {
         width,
@@ -644,8 +521,6 @@ function noteWindowBounds() {
     };
 }
 
-// Nota que nasceu e ninguém escreveu nada não fica pra trás — mesma regra
-// que o widget já aplica ao recolher um card intocado.
 function discardUntouchedNote(noteId) {
     const note = data.notes.find(n => n.id === noteId);
     if (!note || note.title !== "Nova nota" || !RichText.isEmpty(note.content)) return;
@@ -684,8 +559,6 @@ function openNoteWindow(noteId) {
     win.loadFile(path.join(__dirname, "../html/note.html"), { query: { id: noteId } });
     win.once("ready-to-show", () => win.show());
 
-    // O tamanho é uma preferência só, compartilhada por todas as janelas de
-    // nota — guardar por nota encheria o data.json de bounds sem necessidade.
     win.on("resized", () => {
         if (win.isDestroyed() || win.isMinimized() || win.isMaximized()) return;
         const [width, height] = win.getSize();
@@ -702,10 +575,6 @@ function openNoteWindow(noteId) {
     log("[NOTA] Janela aberta:", noteId);
 }
 
-// Nota editada (ou excluída) em outro lugar enquanto a janela dela está
-// aberta. Excluída -> a janela fecha junto; editada -> o conteúdo desce, e
-// quem decide se aplica é o próprio renderer (ver Note.js: não sobrescreve
-// no meio de uma digitação).
 function syncNoteWindows() {
     for (const [id, win] of noteWindows) {
         if (win.isDestroyed()) { noteWindows.delete(id); continue; }
@@ -715,8 +584,6 @@ function syncNoteWindows() {
     }
 }
 
-// Atalho global: cria a nota já abrindo direto no modo janela, sem passar
-// pelo widget.
 function createNoteInWindow() {
     const note = {
         id: require("crypto").randomUUID(),
@@ -749,9 +616,6 @@ ipcMain.on("note-save", (event, payload) => {
     widgetWindow?.webContents.send("notes-updated", data.notes);
 });
 
-// O preload é o mesmo em todas as janelas, então qualquer uma consegue
-// mandar estes dois. Sem a checagem, um envio errado a partir do widget o
-// fecharia -- e ele só volta reiniciando o app.
 function janelaDeNota(event) {
     const win = BrowserWindow.fromWebContents(event.sender);
     if (!win) return null;
@@ -848,10 +712,6 @@ function registerShortcuts() {
 }
 
 /* ═══════════════════════════════  ALARME  ════════════════════════════════ */
-// Toca quando o horário de um evento chega — janela dedicada com som (Web
-// Audio, sintetizado, sem arquivo externo — ver AlarmSounds.js) e os botões
-// Parar/Remarcar. Fila simples porque dois eventos podem vencer juntos e só
-// tem uma janela de alarme.
 
 let alarmQueue = [];
 let alarmShowing = false;
@@ -929,10 +789,6 @@ ipcMain.on("alarm-snooze", () => {
 
 /* ═══════════════════════  NOTIFICAÇÕES DE EVENTOS  ═══════════════════════ */
 
-// Só dispara alarme pra ocorrências com horário definido. Roda em intervalo
-// fixo (em vez de setTimeout por evento) porque setTimeout com atraso maior
-// que ~24 dias estoura (evento anual, por exemplo) e porque isso sobrevive
-// naturalmente ao computador dormir/acordar.
 function checkEventNotifications() {
     if (!Array.isArray(data.events) || data.events.length === 0) return;
 
@@ -950,8 +806,6 @@ function checkEventNotifications() {
         if (diff < 0) continue; // ainda não chegou a hora
 
         if (diff > NOTIFY_GRACE_MS) {
-            // Perdeu a janela de tolerância (app fechado/dormindo): marca só
-            // pra não tocar tarde demais.
             evt.lastNotified = occ;
             changed = true;
             log("[EVENTS] Ocorrência muito atrasada, alarme suprimido:", evt.title, occ);
@@ -960,17 +814,12 @@ function checkEventNotifications() {
             changed = true;
             fireAlarm(evt);
         }
-        // Alarme desligado e ainda dentro da janela: NÃO marca como notificado
-        // -- reativar o alarme nos próximos minutos ainda pega essa ocorrência.
     }
 
     if (changed) debouncedSaveData();
 }
 
 /* ═════════════════════  NOTIFICAÇÕES DO BICHINHO  ═════════════════════════ */
-// Notificação nativa do SO (leve, sem som/popup bloqueante — diferente do
-// alarme de evento) "na voz" do bichinho: pedidos simpáticos, nunca cobrança
-// ou culpa. Clicar nela abre o widget direto na aba dele.
 
 function showPetNotification(body) {
     if (!Notification.isSupported()) return;
@@ -987,11 +836,8 @@ function showPetNotification(body) {
 }
 
 const TAMA_LOW_THRESHOLD = 25;
-const TAMA_NOTIFY_COOLDOWN_MS = 3 * 60 * 60 * 1000; // 3h entre avisos do MESMO status
+const TAMA_NOTIFY_COOLDOWN_MS = 3 * 60 * 60 * 1000; 
 
-// Frases em primeira pessoa, pedindo em vez de cobrar — nada de "vou morrer"
-// ou culpa, só um pedido gentil (ver conversa: notificação "de forma
-// saudável"). Mais de uma opção por status pra não repetir sempre a mesma.
 const TAMA_LOW_MESSAGES = {
     fome: [
         "Tô com uma fominha aqui... que tal completar uma tarefa? Isso me alimenta!",
@@ -1015,9 +861,6 @@ function pickTamaMessage(stat) {
     return options[Math.floor(Math.random() * options.length)];
 }
 
-// Roda no mesmo intervalo de checkEventNotifications. Cada status baixo só
-// avisa de novo depois do cooldown — sem isso viraria notificação a cada 30s
-// enquanto o status continuar baixo, o oposto de "saudável".
 function checkTamaNotifications() {
     const tama = data.tamagotchi;
     if (!tama) return;
@@ -1041,10 +884,6 @@ function checkTamaNotifications() {
 }
 
 /* ═══════════════════  EVENTOS SEM HORÁRIO (AO ABRIR O APP)  ═══════════════ */
-// Eventos sem hora marcada não entram no alarme (checkEventNotifications
-// exige startTime) -- em vez disso, avisa quando o usuário abre o widget no
-// dia do evento. lastNoTimeNotified guarda a DATA (não timestamp) já
-// avisada, então só notifica uma vez por dia por evento.
 
 function checkNoTimeEventsToday() {
     if (!Array.isArray(data.events) || data.events.length === 0) return;
@@ -1117,8 +956,6 @@ app.on("web-contents-created", (event, contents) => {
 
     contents.on("will-attach-webview", (e) => e.preventDefault());
 
-    // Falhas que a própria janela não consegue relatar: se o renderer
-    // morreu, não sobrou ninguém lá para mandar a linha de log.
     contents.on("render-process-gone", (e, detalhes) => {
         warn("[FALHA] Renderer encerrado:", detalhes.reason, "— código", detalhes.exitCode);
     });
@@ -1126,7 +963,6 @@ app.on("web-contents-created", (event, contents) => {
         warn("[FALHA] preload falhou em", caminho, "—", erro.message);
     });
     contents.on("did-fail-load", (e, codigo, descricao, url) => {
-        // -3 é ABORTED, que acontece em navegação cancelada e não é falha.
         if (codigo === -3) return;
         warn("[FALHA] Carregamento falhou:", url, "—", descricao, codigo);
     });
@@ -1179,7 +1015,6 @@ app.on("will-quit", () => {
     log("=== Note-Chan encerrado ===");
 });
 
-// App de bandeja: fechar a janela não encerra o processo
 app.on("window-all-closed", () => { /* intencionalmente vazio */ });
 
 app.on("activate", openWidgetExpanded);

@@ -1,9 +1,4 @@
-/* ─────────────────────────────  TamaSprite.js  ───────────────────────────
-   Desenho do bichinho virtual (grid de pixels -> SVG por fórmula, sem
-   imagem nenhuma). Compartilhado entre o widget (painel do bichinho) e o
-   popup de alarme (pra "ser o próprio bichinho" avisando também) — mesmo
-   padrão UMD do EventUtils.js/TagUtils.js.
-*/
+/* ─────────────────────────────  TamaSprite.js  ─────────────────────────── */
 (function (factory) {
     if (typeof module === "object" && module.exports) {
         module.exports = factory();
@@ -24,8 +19,6 @@
         G: "rgb(90 190 120 / 0.85)"
     };
 
-    // Corpo redondo por equação de elipse -- garante simetria sem desenhar
-    // pixel a pixel na mão.
     function baseGrid() {
         const cx = 7.5, cy = 7.5, rx = 6.6, ry = 6.3;
         const grid = [];
