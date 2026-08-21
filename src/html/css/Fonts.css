@@ -1,0 +1,41 @@
+/* ══════════════════════════════  Fonts.css  ══════════════════════════════
+   As fontes embutidas no app. Arquivo próprio, e não dentro do Theme.css,
+   porque @font-face é regra e o Theme.css é só variável — mas precisa ser
+   carregado pelas cinco janelas do mesmo jeito, já que qualquer tema pode
+   pedir estas famílias.
+
+   Embutidas, e não puxadas do Google Fonts: o CSP das janelas é
+   font-src 'self', então fonte de fora simplesmente não carrega. Os
+   arquivos ficam em assets/fonts/, que o electron-builder já empacota
+   (ver "files" no package.json).
+
+   Só o subconjunto latin de cada uma. Todo acento do português — ã, ç, é,
+   õ, ú — mora no Latin-1, então o subconjunto estendido não faria falta e
+   dobraria o peso à toa.
+
+   Licenças, com os textos completos ao lado dos arquivos em assets/fonts/:
+   Chewy é Apache 2.0 (Font Diner, Inc DBA Sideshow) e Baloo 2 é SIL OFL
+   1.1 (The Baloo 2 Project Authors). As duas permitem redistribuir dentro
+   de um aplicativo.
+*/
+
+/* Bolhuda e irregular, para título. Ilegível em texto corrido de propósito
+   — é display, não texto. Ver --nc-fonte-titulo no Theme.css. */
+@font-face {
+  font-family: 'Chewy';
+  font-style: normal;
+  font-weight: 400;
+  font-display: block;
+  src: url("../../../assets/fonts/chewy-latin.woff2") format("woff2");
+}
+
+/* Arredondada mas ainda confortável em texto corrido, para a interface.
+   É fonte variável: um arquivo só cobre de 400 a 800, por isso o intervalo
+   no font-weight em vez de um arquivo por peso. */
+@font-face {
+  font-family: 'Baloo 2';
+  font-style: normal;
+  font-weight: 400 800;
+  font-display: block;
+  src: url("../../../assets/fonts/baloo2-latin.woff2") format("woff2");
+}

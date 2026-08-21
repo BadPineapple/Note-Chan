@@ -33,6 +33,13 @@
   --nc-fonte-ui: 'Segoe UI', Tahoma, sans-serif;
   --nc-fonte-mono: 'Consolas', 'Courier New', monospace;
 
+  /* Fonte de exibição, e só onde o texto é rótulo curto: barra de título,
+     título de card e título da janela de nota. Cai na fonte da interface por
+     padrão, então tema que não pedir nada continua com uma fonte só. Serve
+     pra tema usar display bolhuda/manuscrita no título sem estragar a
+     leitura de nota, lista e evento. */
+  --nc-fonte-titulo: var(--nc-fonte-ui);
+
   /* painel/janela · caixa de diálogo (alarme) · cartão · botão-campo-aba ·
      pílula de tag.
 
@@ -156,10 +163,13 @@
    o contorno dos cartões sai de graça na mesma cor — só precisa de mais
    opacidade e espessura.
 
-   Fontes: Trebuchet MS tem o desenho humanista arredondado que combina com
-   o traço, e Cascadia Mono (Windows 11) é a monoespaçada mais macia
-   disponível sem embutir arquivo de fonte — o CSP das janelas é
-   font-src 'self', então só dá pra usar o que já existe no sistema. */
+   Fontes: este é o único tema com fonte embutida (ver Fonts.css). Chewy é a
+   bolhuda dos títulos, do mesmo espírito das cartelas da animação, e Baloo 2
+   é a arredondada da interface — foi escolhida por aguentar texto corrido,
+   coisa que a Chewy não faz. As duas caem em Trebuchet MS se por algum
+   motivo o arquivo não carregar. A monoespaçada continua sendo do sistema:
+   Cascadia Mono (Windows 11) é a mais macia disponível, e o cronômetro não
+   justifica um terceiro arquivo. */
 [data-theme="dlirio"] {
   --bg-rgb: 240 240 150;
   --accent-rgb: 175 25 82;
@@ -170,7 +180,8 @@
   --dragbar-alpha: 0.9;
   color-scheme: light;
 
-  --nc-fonte-ui: 'Trebuchet MS', 'Segoe UI', Tahoma, sans-serif;
+  --nc-fonte-ui: 'Baloo 2', 'Trebuchet MS', 'Segoe UI', Tahoma, sans-serif;
+  --nc-fonte-titulo: 'Chewy', 'Baloo 2', 'Trebuchet MS', sans-serif;
   --nc-fonte-mono: 'Cascadia Mono', 'Consolas', monospace;
 
   --nc-raio-painel: 18px;
