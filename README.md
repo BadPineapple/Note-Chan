@@ -187,6 +187,8 @@ Exceção não tratada e promessa rejeitada sem tratamento são registradas com 
 
 Recurso opcional e de mão dupla: eventos e aniversariantes criados no Note-Chan vão pro seu **calendário principal** do Google, e o que você cria direto no Google Agenda aparece no Note-Chan.
 
+> Detalhamento técnico completo — fluxo OAuth, ordem da sincronização, o que sobe e o que não sobe, e o projeto de sincronizar entre máquinas — em [`docs/google.md`](docs/google.md).
+
 - **Direção do conflito**: cada sincronização primeiro envia o que você editou aqui e só depois lê o que está lá — então uma edição local chega ao Google, mas se o mesmo evento mudou dos dois lados desde a última sincronização, o Google vence.
 - **Eventos que já existiam na sua agenda**: quando você edita aqui um evento que não foi criado pelo Note-Chan, só título, data e horário sobem. Recorrência e descrição ficam intactas do lado do Google — o modelo de recorrência daqui é mais simples que o de lá, e reenviá-lo trocaria um "toda segunda e quarta até dezembro" por um "toda semana".
 - **Recorrência**: sincroniza como evento recorrente de verdade no Google (RRULE); "marcar como concluído" continua sendo só uma informação do Note-Chan — o Google não tem esse conceito.
